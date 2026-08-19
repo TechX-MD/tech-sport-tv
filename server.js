@@ -18,13 +18,13 @@ const ESPN_LEAGUES = [
 
 let trackedMatches = {};
 
-// ROOT HOMEPAGE ROUTE
+// ROOT ROUTE
 app.get('/', (req, res) => {
   res.status(200).send(`
     <div style="background:#0b1120;color:#2dd4bf;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
-      <h1>⚽ TECH SPORT TV ENGINE IS ONLINE!</h1>
+      <h1>⚽ TECH SPORT TV WEBHOOK ENGINE IS ONLINE!</h1>
       <p style="color:#94a3b8;">Telegram Channel: <b>@TechxMD1</b></p>
-      <p style="color:#10b981;">Status: Webhook Active (0.1s Instant Response)</p>
+      <p style="color:#10b981;">Status: 200 OK (Clean Webhook Architecture)</p>
     </div>
   `);
 });
@@ -48,8 +48,10 @@ async function sendTelegramAlert(message) {
     } else {
       console.error("❌ Telegram Error:", data.description);
     }
+    return data;
   } catch (err) {
     console.error("❌ Network Error:", err.message);
+    return null;
   }
 }
 
@@ -85,7 +87,6 @@ function getFormattedDateString(offsetDays = 0) {
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-// DYNAMIC DATE PARSER (Parses "22 August 2026", "22 Aug", "today", "tomorrow")
 function parseDateFromText(text) {
   const lower = text.toLowerCase();
   if (lower.includes('today')) return { dateStr: getYYYYMMDD(0), label: getFormattedDateString(0) };
@@ -214,7 +215,7 @@ async function fetchLiveScoresFromESPN() {
           }
 
           if (statusType === "STATUS_HALFTIME" && prevMatch.status !== "STATUS_HALFTIME") {
-            const msg = `⏸️ <b>HALF TIME STARTED / BREAK</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore} - ${awayScore} ${awayName} 🔴\n\n⏱️ 45' Half Time Intervane\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
+            const msg = `⏸️ <b>HALF TIME STARTED / BREAK</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore} - ${awayScore} ${homeName} 🔴\n\n⏱️ 45' Half Time Intervane\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
             sendTelegramAlert(msg);
           }
 
@@ -274,7 +275,7 @@ async function fetchRealLiveStandings(leagueCode, leagueName) {
   return null;
 }
 
-// TELEGRAM WEBHOOK ENDPOINT (INSTANT COMMANDS ON VERCEL)
+// TELEGRAM WEBHOOK (INSTANT COMMANDS ON VERCEL)
 app.post('/api/telegram-webhook', async (req, res) => {
   try {
     const update = req.body;
@@ -306,20 +307,37 @@ app.post('/api/telegram-webhook', async (req, res) => {
   return res.status(200).send("OK");
 });
 
-// 1-CLICK WEBHOOK ACTIVATION ROUTE
+// SET WEBHOOK WITH FULL CHANNEL POST PERMISSIONS
 app.get('/api/set-webhook', async (req, res) => {
   const host = req.headers.host;
   const protocol = req.headers['x-forwarded-proto'] || 'https';
   const webhookUrl = `${protocol}://${host}/api/telegram-webhook`;
 
   try {
-    const tgUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${encodeURIComponent(webhookUrl)}`;
-    const tgRes = await fetch(tgUrl);
+    // Delete old webhook first
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=true`);
+
+    // Set new webhook with channel_post allowed_updates
+    const tgUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`;
+    const tgRes = await fetch(tgUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: webhookUrl,
+        allowed_updates: ["message", "edited_message", "channel_post", "edited_channel_post"]
+      })
+    });
     const data = await tgRes.json();
     return res.json({ success: data.ok, telegramResponse: data, webhookUrl });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
+});
+
+// TEST TELEGRAM DIRECTLY FROM VERCEL
+app.get('/api/test-telegram', async (req, res) => {
+  const result = await sendTelegramAlert("⚽ <b>Tech Sport TV Bot is Live & Connected to Vercel!</b>");
+  return res.json({ result });
 });
 
 // VERCEL 24/7 CRON ENDPOINT
