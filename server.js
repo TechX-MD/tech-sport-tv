@@ -22,9 +22,9 @@ let trackedMatches = {};
 app.get('/', (req, res) => {
   res.status(200).send(`
     <div style="background:#0b1120;color:#2dd4bf;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
-      <h1>⚽ TECH SPORT TV ENGINE IS ONLINE!</h1>
-      <p style="color:#94a3b8;">Channel: <b>@TechxMD1</b> (https://t.me/TechxMD1)</p>
-      <p style="color:#10b981;">Status: 200 OK (Channel Link Linked)</p>
+      <h1>⚽ TECH SPORT TV LIVE MATCHES ENGINE IS ONLINE!</h1>
+      <p style="color:#94a3b8;">Channel: <b>@TechxMD1</b></p>
+      <p style="color:#10b981;">Status: Owner Manual Live Bulletin Ready</p>
     </div>
   `);
 });
@@ -110,6 +110,50 @@ function parseDateFromText(text) {
   }
 
   return { dateStr: getYYYYMMDD(0), label: getFormattedDateString(0) };
+}
+
+// GENERATE DYNAMIC ALL LIVE MATCHES BULLETIN (OWNER TRIGGERED)
+async function generateAllLiveMatchesBulletin() {
+  let bulletin = `🔴 <b>TECH SPORT TV — LIVE MATCHES BULLETIN</b>\n━━━━━━━━━━━━━━━\n\n`;
+  let liveCount = 0;
+
+  for (const league of ESPN_LEAGUES) {
+    try {
+      const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${league.code}/scoreboard`;
+      const res = await fetch(url);
+      if (!res.ok) continue;
+
+      const data = await res.json();
+      const events = data.events || [];
+
+      const inPlayMatches = events.filter(ev => {
+        const st = ev.status?.type?.name;
+        return st === 'STATUS_IN_PLAY' || st === 'STATUS_HALFTIME';
+      });
+
+      if (inPlayMatches.length > 0) {
+        bulletin += `${league.name}\n`;
+        inPlayMatches.forEach(ev => {
+          liveCount++;
+          const comp = ev.competitions && ev.competitions[0];
+          const home = comp.competitors.find(c => c.homeAway === 'home');
+          const away = comp.competitors.find(c => c.homeAway === 'away');
+          const minute = ev.status?.type?.shortDetail || 'LIVE';
+
+          bulletin += `• 🔵 <b>${home.team.name}</b> ${home.score} - ${away.score} 🔴 <b>${away.team.name}</b> (${minute})\n`;
+        });
+        bulletin += `\n`;
+      }
+    } catch (e) {}
+  }
+
+  // If no matches in-play right now, fetch today's scheduled matches
+  if (liveCount === 0) {
+    return await fetchRealFixturesForDate(getYYYYMMDD(0), "TODAY'S SCHEDULED MATCHES");
+  }
+
+  bulletin += `📌 <i>Live Summary Posted by Admin</i>\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
+  return bulletin;
 }
 
 // FETCH REAL FIXTURES
@@ -203,22 +247,31 @@ async function fetchRealLiveStandings(leagueCode, leagueName) {
   return null;
 }
 
-// TELEGRAM WEBHOOK ENDPOINT
+// TELEGRAM WEBHOOK (RESPONDS TO /live, /table, & FIXTURES COMMANDS)
 app.post('/api/telegram-webhook', async (req, res) => {
   try {
     const update = req.body;
     const msg = update.message || update.channel_post || update.edited_channel_post;
 
     if (msg && msg.text) {
-      const targetChatId = msg.chat.id || TELEGRAM_CHANNEL_ID;
+      const targetChatId = TELEGRAM_CHANNEL_ID; // Posts directly to channel @TechxMD1!
       const text = msg.text.trim().toLowerCase();
-      console.log(`📩 Webhook Received in Chat (${targetChatId}): "${text}"`);
+      console.log(`📩 Command Received: "${text}"`);
 
-      if (text.includes('fixture') || text.includes('fixtures') || text === '/today' || text === '/tomorrow') {
+      // OWNER TRIGGER: ALL LIVE MATCHES BULLETIN
+      if (text === '/live' || text === 'live' || text.includes('all live') || text.includes('live matches')) {
+        console.log("🔴 Owner Triggered All Live Matches Bulletin...");
+        const liveBulletin = await generateAllLiveMatchesBulletin();
+        await sendTelegramAlert(targetChatId, liveBulletin);
+      } 
+      // FIXTURES COMMANDS
+      else if (text.includes('fixture') || text.includes('fixtures') || text === '/today' || text === '/tomorrow') {
         const { dateStr, label } = parseDateFromText(text);
         const fixText = await fetchRealFixturesForDate(dateStr, label);
         await sendTelegramAlert(targetChatId, fixText);
-      } else if (text.includes('/table') || text.includes('table')) {
+      } 
+      // STANDINGS TABLE COMMANDS
+      else if (text.includes('/table') || text.includes('table')) {
         let leagueCode = 'eng.1', leagueName = 'Premier League';
         if (text.includes('laliga')) { leagueCode = 'esp.1'; leagueName = 'La Liga'; }
         else if (text.includes('cl') || text.includes('champions')) { leagueCode = 'uefa.champions'; leagueName = 'Champions League'; }
@@ -253,17 +306,18 @@ app.get('/api/set-webhook', async (req, res) => {
         allowed_updates: ["message", "edited_message", "channel_post", "edited_channel_post"]
       })
     });
-    const data = await tgRes.json();
+    const data = await res.json();
     return res.json({ success: data.ok, telegramResponse: data, webhookUrl });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
 });
 
-// DIRECT TEST TO @TechxMD1
-app.get('/api/test-telegram', async (req, res) => {
-  const result = await sendTelegramAlert(TELEGRAM_CHANNEL_ID, "⚽ <b>Tech Sport TV Bot Connected Directly to t.me/TechxMD1!</b>");
-  return res.json({ result });
+// DIRECT SHORTCUT FOR TERMUX
+app.get('/api/post-live', async (req, res) => {
+  const liveBulletin = await generateAllLiveMatchesBulletin();
+  await sendTelegramAlert(TELEGRAM_CHANNEL_ID, liveBulletin);
+  return res.json({ success: true, message: "Live matches bulletin posted to @TechxMD1!" });
 });
 
 if (process.env.NODE_ENV !== 'production') {
