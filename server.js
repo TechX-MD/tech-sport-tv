@@ -1,5 +1,6 @@
 const express = require('express');
 const app = express();
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
@@ -7,6 +8,7 @@ app.use(express.json());
 const TELEGRAM_BOT_TOKEN = "8903172225:AAGqHqHpBRNVXdj7Ic0KadYo_LRza_6DrhE";
 const TELEGRAM_CHANNEL_ID = "@TechxMD1";
 
+// EXACT 7 LEAGUES FROM YOUR IMAGE
 const ESPN_LEAGUES = [
   { code: "eng.1", name: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League" },
   { code: "esp.1", name: "🇪🇸 LaLiga" },
@@ -21,17 +23,13 @@ let trackedMatches = {};
 
 // ROOT ROUTE
 app.get('/', (req, res) => {
-  try {
-    res.status(200).send(`
-      <div style="background:#0b1120;color:#2dd4bf;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
-        <h1>⚽ TECH SPORT TV ENGINE IS ONLINE!</h1>
-        <p style="color:#94a3b8;">Telegram Channel: <b>@TechxMD1</b></p>
-        <p style="color:#10b981;">Status: 200 OK (/live All Matches Active)</p>
-      </div>
-    `);
-  } catch (e) {
-    res.status(200).send("OK");
-  }
+  res.status(200).send(`
+    <div style="background:#0b1120;color:#f59e0b;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
+      <h1>⚽ TECH SPORT TV FINAL ENGINE ACTIVE!</h1>
+      <p style="color:#94a3b8;">Telegram Channel: <b>@TechxMD1</b></p>
+      <p style="color:#10b981;">Status: 200 OK (Live Minutes Active for /live & live all)</p>
+    </div>
+  `);
 });
 
 // SEND ALERT TO TELEGRAM CHANNEL
@@ -112,9 +110,9 @@ function parseDateFromText(text) {
   return { dateStr: getYYYYMMDD(0), label: getFormattedDateString(0) };
 }
 
-// GENERATE DYNAMIC ALL LIVE MATCHES BULLETIN
+// GENERATE DYNAMIC ALL LIVE MATCHES BULLETIN WITH EXACT LIVE MINUTES
 async function fetchRealLiveMatchesBulletin() {
-  let bulletin = `🔴 <b>TECH SPORT TV — ALL LIVE MATCHES</b>\n━━━━━━━━━━━━━━━\n\n`;
+  let bulletin = `🔴 <b>TECH SPORT TV — LIVE MATCHES BULLETIN</b>\n━━━━━━━━━━━━━━━\n\n`;
   let liveCount = 0;
 
   for (const league of ESPN_LEAGUES) {
@@ -138,14 +136,17 @@ async function fetchRealLiveMatchesBulletin() {
           const comp = ev.competitions && ev.competitions[0];
           const home = comp.competitors.find(c => c.homeAway === 'home');
           const away = comp.competitors.find(c => c.homeAway === 'away');
-          const minute = ev.status?.type?.shortDetail || 'LIVE';
+          
+          // Exact Live Minutes Formatting
+          const rawDetail = ev.status?.type?.shortDetail || ev.status?.displayClock || 'LIVE';
+          const displayMin = rawDetail === 'HT' ? 'Half Time' : (rawDetail.includes("'") ? rawDetail : `${rawDetail}'`);
 
           const hName = home?.team?.name || 'Home';
           const aName = away?.team?.name || 'Away';
           const hScore = home?.score || '0';
           const aScore = away?.score || '0';
 
-          bulletin += `• 🔵 <b>${hName}</b> ${hScore} - ${aScore} 🔴 <b>${aName}</b> (${minute})\n`;
+          bulletin += `• 🔵 <b>${hName}</b> ${hScore} - ${aScore} 🔴 <b>${aName}</b> (⏱️ ${displayMin})\n`;
         });
         bulletin += `\n`;
       }
@@ -156,7 +157,7 @@ async function fetchRealLiveMatchesBulletin() {
     return await fetchRealFixturesForDate(getYYYYMMDD(0), "TODAY'S SCHEDULED MATCHES");
   }
 
-  bulletin += `📌 <i>Live Summary Posted by Admin</i>\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
+  bulletin += `📌 <i>Live Scores Updated</i>\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
   return bulletin;
 }
 
@@ -212,7 +213,7 @@ async function fetchRealFixturesForDate(dateStr, dateLabel) {
   return fixturesText;
 }
 
-// REAL LIVE SOCCER SCORE ENGINE
+// REAL LIVE SOCCER SCORE ENGINE WITH GOALSCORERS & LIVE MINUTES
 async function fetchLiveScoresFromESPN() {
   for (const league of ESPN_LEAGUES) {
     try {
@@ -333,7 +334,7 @@ async function fetchRealLiveStandings(leagueCode, leagueName) {
   return null;
 }
 
-// TELEGRAM WEBHOOK
+// TELEGRAM WEBHOOK (RESPONDS TO /live, live all, /table, FIXTURES)
 app.post('/api/telegram-webhook', async (req, res) => {
   try {
     const update = req.body;
@@ -344,9 +345,9 @@ app.post('/api/telegram-webhook', async (req, res) => {
       const text = msg.text.trim().toLowerCase();
       console.log(`📩 Webhook Received in Chat (${targetChatId}): "${text}"`);
 
-      // ALL LIVE MATCHES
-      if (text.includes('/live') || text.includes('live match') || text.includes('live matches') || text === 'live') {
-        console.log("🔴 Processing /live request...");
+      // MATCH ALL VARIATIONS OF LIVE COMMANDS
+      if (text.includes('/live') || text.includes('live match') || text.includes('live matches') || text.includes('live all') || text.includes('all live') || text === 'live') {
+        console.log("🔴 Fetching Live Matches Bulletin with Live Minutes...");
         const liveText = await fetchRealLiveMatchesBulletin();
         await sendTelegramAlert(targetChatId, liveText);
       } else if (text.includes('fixture') || text.includes('fixtures') || text === '/today' || text === '/tomorrow') {
