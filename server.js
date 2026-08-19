@@ -1,6 +1,5 @@
 const express = require('express');
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
@@ -8,28 +7,29 @@ app.use(express.json());
 const TELEGRAM_BOT_TOKEN = "8903172225:AAGqHqHpBRNVXdj7Ic0KadYo_LRza_6DrhE";
 const TELEGRAM_CHANNEL_ID = "@TechxMD1";
 
-// EXACT 7 LEAGUES FROM IMAGE
 const ESPN_LEAGUES = [
-  { code: "eng.1", name: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League" },
-  { code: "esp.1", name: "🇪🇸 LaLiga" },
-  { code: "ger.1", name: "🇩🇪 Bundesliga" },
-  { code: "ita.1", name: "🇮🇹 Serie A" },
-  { code: "fra.1", name: "🇫🇷 Ligue 1" },
-  { code: "eng.2", name: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Championship" },
-  { code: "uefa.champions", name: "🇪🇺 Champions League" }
+  { code: "eng.1", name: "🏆 Premier League 🇬🇧" },
+  { code: "uefa.champions", name: "🏆 UEFA Champions League 🇪🇺" },
+  { code: "esp.1", name: "🏆 La Liga 🇪🇸" },
+  { code: "ita.1", name: "🏆 Serie A 🇮🇹" },
+  { code: "ger.1", name: "🏆 Bundesliga 🇩🇪" }
 ];
 
 let trackedMatches = {};
 
-// ROOT ROUTE
+// ROOT ROUTE (Fixes 500/404 on Vercel)
 app.get('/', (req, res) => {
-  res.status(200).send(`
-    <div style="background:#0b1120;color:#f59e0b;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
-      <h1>⚽ TECH SPORT TV LIVE MATCHES ENGINE IS ONLINE!</h1>
-      <p style="color:#94a3b8;">Telegram Channel: <b>@TechxMD1</b></p>
-      <p style="color:#10b981;">Status: /live All Matches Active</p>
-    </div>
-  `);
+  try {
+    res.status(200).send(`
+      <div style="background:#0b1120;color:#2dd4bf;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
+        <h1>⚽ TECH SPORT TV ENGINE IS ONLINE!</h1>
+        <p style="color:#94a3b8;">Telegram Channel: <b>@TechxMD1</b></p>
+        <p style="color:#10b981;">Status: 200 OK (Serverless Ready)</p>
+      </div>
+    `);
+  } catch (e) {
+    res.status(200).send("OK");
+  }
 });
 
 // SEND ALERT TO TELEGRAM CHANNEL
@@ -47,19 +47,14 @@ async function sendTelegramAlert(targetChatId, message) {
       })
     });
     const data = await res.json();
-    if (data.ok) {
-      console.log(`✅ TELEGRAM MESSAGE SENT TO (${chatId})!`);
-    } else {
-      console.error("❌ Telegram Error:", data.description);
-    }
     return data;
   } catch (err) {
-    console.error("❌ Network Error:", err.message);
+    console.error("Telegram send error:", err.message);
     return null;
   }
 }
 
-// TIME HELPER: AFRICA (CAT) & UK TIME
+// TIME HELPER
 function formatMatchTimes(dateIsoString) {
   if (!dateIsoString) return "TBD";
   const d = new Date(dateIsoString);
@@ -115,54 +110,6 @@ function parseDateFromText(text) {
   return { dateStr: getYYYYMMDD(0), label: getFormattedDateString(0) };
 }
 
-// GENERATE DYNAMIC ALL LIVE MATCHES BULLETIN
-async function fetchRealLiveMatchesBulletin() {
-  let bulletin = `🔴 <b>TECH SPORT TV — ALL LIVE MATCHES</b>\n━━━━━━━━━━━━━━━\n\n`;
-  let liveCount = 0;
-
-  for (const league of ESPN_LEAGUES) {
-    try {
-      const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${league.code}/scoreboard`;
-      const res = await fetch(url);
-      if (!res.ok) continue;
-
-      const data = await res.json();
-      const events = data.events || [];
-
-      const inPlayEvents = events.filter(ev => {
-        const st = ev.status?.type?.name;
-        return st === 'STATUS_IN_PLAY' || st === 'STATUS_HALFTIME';
-      });
-
-      if (inPlayEvents.length > 0) {
-        bulletin += `${league.name}\n`;
-        inPlayEvents.forEach(ev => {
-          liveCount++;
-          const comp = ev.competitions && ev.competitions[0];
-          const home = comp.competitors.find(c => c.homeAway === 'home');
-          const away = comp.competitors.find(c => c.homeAway === 'away');
-          const minute = ev.status?.type?.shortDetail || 'LIVE';
-
-          const hName = home?.team?.name || 'Home';
-          const aName = away?.team?.name || 'Away';
-          const hScore = home?.score || '0';
-          const aScore = away?.score || '0';
-
-          bulletin += `• 🔵 <b>${hName}</b> ${hScore} - ${aScore} 🔴 <b>${aName}</b> (${minute})\n`;
-        });
-        bulletin += `\n`;
-      }
-    } catch (e) {}
-  }
-
-  if (liveCount === 0) {
-    return await fetchRealFixturesForDate(getYYYYMMDD(0), "TODAY'S SCHEDULED MATCHES");
-  }
-
-  bulletin += `📌 <i>Live Summary Posted by Admin</i>\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
-  return bulletin;
-}
-
 // FETCH REAL FIXTURES
 async function fetchRealFixturesForDate(dateStr, dateLabel) {
   let fixturesText = `📅 <b>REAL FOOTBALL FIXTURES</b>\n🗓️ <i>${dateLabel}</i>\n━━━━━━━━━━━━━━━\n\n`;
@@ -215,7 +162,7 @@ async function fetchRealFixturesForDate(dateStr, dateLabel) {
   return fixturesText;
 }
 
-// REAL LIVE SOCCER SCORE ENGINE WITH GOALSCORERS & MINUTES
+// REAL LIVE SOCCER SCORE ENGINE
 async function fetchLiveScoresFromESPN() {
   for (const league of ESPN_LEAGUES) {
     try {
@@ -242,14 +189,6 @@ async function fetchLiveScoresFromESPN() {
         const statusType = ev.status?.type?.name || "";
         const minute = ev.status?.type?.shortDetail || "LIVE";
 
-        let lastScorerName = "Goal Scored";
-        if (comp.details && comp.details.length > 0) {
-          const lastDetail = comp.details[comp.details.length - 1];
-          if (lastDetail && lastDetail.athletes && lastDetail.athletes[0]) {
-            lastScorerName = `${lastDetail.athletes[0].displayName} (${minute})`;
-          }
-        }
-
         const currentMatch = {
           id: matchId,
           league: league.name,
@@ -258,36 +197,35 @@ async function fetchLiveScoresFromESPN() {
           homeScore: homeScore,
           awayScore: awayScore,
           minute: minute,
-          status: statusType,
-          lastScorer: lastScorerName
+          status: statusType
         };
 
         const prevMatch = trackedMatches[matchId];
 
         if (prevMatch) {
           if (homeScore > prevMatch.homeScore) {
-            const msg = `⚽ <b>GOAL ALERT!</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore}\n🔴 ${awayName} ${awayScore}\n\n⏱️ Minute: <b>${minute}</b>\n⚽ <b>Goalscorer:</b> ${lastScorerName}\n🔥 <b>${homeName}</b> score!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
-            sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
+            const msg = `⚽ <b>GOAL ALERT!</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore}\n🔴 ${awayName} ${awayScore}\n\n⏱️ Minute: <b>${minute}</b>\n🔥 <b>${homeName}</b> score!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
+            await sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
           }
 
           if (awayScore > prevMatch.awayScore) {
-            const msg = `⚽ <b>GOAL ALERT!</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 ${homeName} ${homeScore}\n🔴 <b>${awayName}</b> ${awayScore}\n\n⏱️ Minute: <b>${minute}</b>\n⚽ <b>Goalscorer:</b> ${lastScorerName}\n🔥 <b>${awayName}</b> score!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
-            sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
+            const msg = `⚽ <b>GOAL ALERT!</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 ${homeName} ${homeScore}\n🔴 <b>${awayName}</b> ${awayScore}\n\n⏱️ Minute: <b>${minute}</b>\n🔥 <b>${awayName}</b> score!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
+            await sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
           }
 
           if (statusType === "STATUS_HALFTIME" && prevMatch.status !== "STATUS_HALFTIME") {
-            const msg = `⏸️ <b>HALFTIME STARTED / BREAK</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore} - ${awayScore} <b>${awayName}</b> 🔴\n\n⏱️ 45' Half Time Intervane\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
-            sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
+            const msg = `⏸️ <b>HALF TIME STARTED / BREAK</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore} - ${awayScore} <b>${awayName}</b> 🔴\n\n⏱️ 45' Half Time Intervane\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
+            await sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
           }
 
           if (statusType === "STATUS_IN_PLAY" && prevMatch.status === "STATUS_HALFTIME") {
             const msg = `🔔 <b>2ND HALF KICK-OFF / STARTED</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 ${homeName} ${homeScore} - ${awayScore} ${awayName} 🔴\n\n⏱️ 2nd Half Underway!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
-            sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
+            await sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
           }
 
           if ((statusType === "STATUS_FINAL" || statusType === "STATUS_FULL_TIME") && prevMatch.status !== "STATUS_FINAL") {
             const msg = `🏁 <b>MATCH ENDED / FULL TIME</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore} - ${awayScore} <b>${awayName}</b> 🔴\n\n⏱️ Final Score\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
-            sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
+            await sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
           }
         }
 
@@ -297,7 +235,7 @@ async function fetchLiveScoresFromESPN() {
   }
 }
 
-// FETCH REAL LIVE STANDINGS (1-20)
+// FETCH REAL LIVE STANDINGS
 async function fetchRealLiveStandings(leagueCode, leagueName) {
   try {
     const url = `https://site.api.espn.com/apis/v2/sports/soccer/${leagueCode}/standings`;
@@ -336,7 +274,7 @@ async function fetchRealLiveStandings(leagueCode, leagueName) {
   return null;
 }
 
-// TELEGRAM WEBHOOK (RESPONDS TO /live, /table, & FIXTURES)
+// TELEGRAM WEBHOOK ENDPOINT
 app.post('/api/telegram-webhook', async (req, res) => {
   try {
     const update = req.body;
@@ -345,39 +283,65 @@ app.post('/api/telegram-webhook', async (req, res) => {
     if (msg && msg.text) {
       const targetChatId = msg.chat.id || TELEGRAM_CHANNEL_ID;
       const text = msg.text.trim().toLowerCase();
-      console.log(`📩 Webhook Received in Chat (${targetChatId}): "${text}"`);
 
-      // ALL LIVE MATCHES COMMAND (/live)
-      if (text.includes('/live') || text.includes('live match') || text.includes('live matches') || text === 'live') {
-        console.log("🔴 Fetching All Live Matches...");
-        const liveBulletin = await fetchRealLiveMatchesBulletin();
-        await sendTelegramAlert(targetChatId, liveBulletin);
-      } 
-      // FIXTURES COMMANDS
-      else if (text.includes('fixture') || text.includes('fixtures') || text === '/today' || text === '/tomorrow') {
+      if (text.includes('fixture') || text.includes('fixtures') || text === '/today' || text === '/tomorrow') {
         const { dateStr, label } = parseDateFromText(text);
         const fixText = await fetchRealFixturesForDate(dateStr, label);
         await sendTelegramAlert(targetChatId, fixText);
-      } 
-      // STANDINGS TABLE COMMANDS
-      else if (text.includes('/table') || text.includes('table')) {
+      } else if (text.includes('/table') || text.includes('table')) {
         let leagueCode = 'eng.1', leagueName = 'Premier League';
         if (text.includes('laliga')) { leagueCode = 'esp.1'; leagueName = 'La Liga'; }
-        else if (text.includes('bundesliga')) { leagueCode = 'ger.1'; leagueName = 'Bundesliga'; }
-        else if (text.includes('seriea')) { leagueCode = 'ita.1'; leagueName = 'Serie A'; }
-        else if (text.includes('ligue1')) { leagueCode = 'fra.1'; leagueName = 'Ligue 1'; }
-        else if (text.includes('championship')) { leagueCode = 'eng.2'; leagueName = 'Championship'; }
         else if (text.includes('cl') || text.includes('champions')) { leagueCode = 'uefa.champions'; leagueName = 'Champions League'; }
+        else if (text.includes('seriea')) { leagueCode = 'ita.1'; leagueName = 'Serie A'; }
+        else if (text.includes('bundesliga')) { leagueCode = 'ger.1'; leagueName = 'Bundesliga'; }
 
         const tableText = await fetchRealLiveStandings(leagueCode, leagueName);
         if (tableText) await sendTelegramAlert(targetChatId, tableText);
       }
     }
-  } catch (e) {
-    console.error("Webhook processing error:", e.message);
-  }
+  } catch (e) {}
 
   return res.status(200).send("OK");
 });
 
-// Push to Vercel GitHub
+// CRON ENDPOINT FOR CRON-JOB.ORG
+app.all('/api/cron', async (req, res) => {
+  try {
+    await fetchLiveScoresFromESPN();
+    return res.status(200).json({ success: true, timestamp: new Date().toISOString() });
+  } catch (e) {
+    return res.status(200).json({ success: false, error: e.message });
+  }
+});
+
+// SET WEBHOOK ROUTE
+app.get('/api/set-webhook', async (req, res) => {
+  const host = req.headers.host;
+  const protocol = req.headers['x-forwarded-proto'] || 'https';
+  const webhookUrl = `${protocol}://${host}/api/telegram-webhook`;
+
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=true`);
+
+    const tgUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`;
+    const tgRes = await fetch(tgUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: webhookUrl,
+        allowed_updates: ["message", "edited_message", "channel_post", "edited_channel_post"]
+      })
+    });
+    const data = await tgRes.json();
+    return res.json({ success: data.ok, telegramResponse: data, webhookUrl });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+const PORT_NUM = process.env.PORT || 3000;
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT_NUM, () => console.log(`Server listening on port ${PORT_NUM}`));
+}
+
+module.exports = app;
