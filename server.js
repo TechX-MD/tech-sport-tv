@@ -18,6 +18,17 @@ const ESPN_LEAGUES = [
 
 let trackedMatches = {};
 
+// ROOT HOMEPAGE ROUTE (Fixes 404 on Vercel)
+app.get('/', (req, res) => {
+  res.status(200).send(`
+    <div style="background:#0b1120;color:#2dd4bf;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
+      <h1>⚽ TECH SPORT TV ENGINE IS ACTIVE & ONLINE!</h1>
+      <p style="color:#94a3b8;">Telegram Channel: <b>@TechxMD1</b></p>
+      <p style="color:#10b981;">Status: 200 OK (Cloud Service Running 24/7)</p>
+    </div>
+  `);
+});
+
 // SEND ALERT TO TELEGRAM CHANNEL
 async function sendTelegramAlert(message) {
   try {
@@ -59,7 +70,6 @@ function formatMatchTimes(dateIsoString) {
   return `${catHours}:${catMins} CAT | ${ukHours}:${ukMins} UK`;
 }
 
-// DATE HELPER & PARSER
 function getYYYYMMDD(offsetDays = 0) {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
@@ -151,7 +161,7 @@ async function fetchRealFixturesForDate(dateStr, dateLabel) {
   return fixturesText;
 }
 
-// REAL LIVE SOCCER SCORE ENGINE (Goal, Half Time Started, 2nd Half Started, Full Time)
+// REAL LIVE SOCCER SCORE ENGINE
 async function fetchLiveScoresFromESPN() {
   for (const league of ESPN_LEAGUES) {
     try {
@@ -192,31 +202,26 @@ async function fetchLiveScoresFromESPN() {
         const prevMatch = trackedMatches[matchId];
 
         if (prevMatch) {
-          // 1. GOAL DETECTED HOME
           if (homeScore > prevMatch.homeScore) {
             const msg = `⚽ <b>GOAL ALERT!</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore}\n🔴 ${awayName} ${awayScore}\n\n⏱️ Minute: ${minute}\n🔥 <b>${homeName}</b> score!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
             sendTelegramAlert(msg);
           }
 
-          // 2. GOAL DETECTED AWAY
           if (awayScore > prevMatch.awayScore) {
             const msg = `⚽ <b>GOAL ALERT!</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 ${homeName} ${homeScore}\n🔴 <b>${awayName}</b> ${awayScore}\n\n⏱️ Minute: ${minute}\n🔥 <b>${awayName}</b> score!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
             sendTelegramAlert(msg);
           }
 
-          // 3. HALF TIME STARTED / BREAK
           if (statusType === "STATUS_HALFTIME" && prevMatch.status !== "STATUS_HALFTIME") {
-            const msg = `⏸️ <b>HALF TIME STARTED / BREAK</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore} - ${awayScore} ${awayName} 🔴\n\n⏱️ 45' Half Time Intervane\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
+            const msg = `⏸️ <b>HALF TIME STARTED / BREAK</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore} - ${awayScore} ${homeName} 🔴\n\n⏱️ 45' Half Time Intervane\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
             sendTelegramAlert(msg);
           }
 
-          // 4. 2ND HALF STARTED / KICK-OFF
           if (statusType === "STATUS_IN_PLAY" && prevMatch.status === "STATUS_HALFTIME") {
             const msg = `🔔 <b>2ND HALF KICK-OFF / STARTED</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 ${homeName} ${homeScore} - ${awayScore} ${awayName} 🔴\n\n⏱️ 2nd Half Underway!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
             sendTelegramAlert(msg);
           }
 
-          // 5. FULL TIME RESULT
           if ((statusType === "STATUS_FINAL" || statusType === "STATUS_FULL_TIME") && prevMatch.status !== "STATUS_FINAL") {
             const msg = `🏁 <b>FULL TIME / MATCH ENDED</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore} - ${awayScore} <b>${awayName}</b> 🔴\n\n⏱️ Final Score\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
             sendTelegramAlert(msg);
@@ -229,7 +234,7 @@ async function fetchLiveScoresFromESPN() {
   }
 }
 
-// UPGRADED PREMIUM LEAGUE STANDINGS TABLE (FULL 1-20)
+// FETCH REAL LIVE STANDINGS (1-20)
 async function fetchRealLiveStandings(leagueCode, leagueName) {
   try {
     const url = `https://site.api.espn.com/apis/v2/sports/soccer/${leagueCode}/standings`;
@@ -251,12 +256,11 @@ async function fetchRealLiveStandings(leagueCode, leagueName) {
           const gd = stats.find(s => s.name === 'pointDifferential')?.value ?? 0;
           const gdSign = gd > 0 ? `+${gd}` : `${gd}`;
 
-          // Premium Rank Badges
           let badge = "🔹";
           if (rank === 1) badge = "🥇";
           else if (rank === 2) badge = "🥈";
           else if (rank === 3) badge = "🥉";
-          else if (rank >= 18) badge = "🔻"; // Relegation Zone
+          else if (rank >= 18) badge = "🔻";
 
           tableText += `${badge} <b>${rank}. ${teamName}</b> — ${gp} GP | <b>${pts} Pts</b> (GD: ${gdSign})\n`;
         });
@@ -265,9 +269,7 @@ async function fetchRealLiveStandings(leagueCode, leagueName) {
         return tableText;
       }
     }
-  } catch (e) {
-    console.error("Live standings error:", e.message);
-  }
+  } catch (e) {}
   return null;
 }
 
@@ -309,16 +311,11 @@ async function pollTelegramBotCommands() {
 }
 
 // VERCEL 24/7 AUTOMATED CRON ENDPOINT
-app.get('/api/cron', async (req, res) => {
+app.all('/api/cron', async (req, res) => {
   await fetchLiveScoresFromESPN();
   await pollTelegramBotCommands();
-  return res.json({ success: true, timestamp: new Date().toISOString() });
+  return res.status(200).json({ success: true, timestamp: new Date().toISOString() });
 });
-
-setInterval(fetchLiveScoresFromESPN, 15000);
-setInterval(pollTelegramBotCommands, 3000);
-
-fetchLiveScoresFromESPN();
 
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
