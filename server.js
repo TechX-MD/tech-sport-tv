@@ -6,7 +6,7 @@ app.use(express.json());
 
 // REAL TELEGRAM CREDENTIALS
 const TELEGRAM_BOT_TOKEN = "8903172225:AAGqHqHpBRNVXdj7Ic0KadYo_LRza_6DrhE";
-const DEFAULT_CHANNEL = "@TECHX_MD_OFFICIAL";
+const TELEGRAM_CHANNEL_ID = "@TechxMD1";
 
 const ESPN_LEAGUES = [
   { code: "eng.1", name: "🏆 Premier League 🇬🇧" },
@@ -22,17 +22,17 @@ let trackedMatches = {};
 app.get('/', (req, res) => {
   res.status(200).send(`
     <div style="background:#0b1120;color:#2dd4bf;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
-      <h1>⚽ TECH SPORT TV WEBHOOK ENGINE IS ONLINE!</h1>
-      <p style="color:#94a3b8;">Channel: <b>TECHX-MD OFFICIAL</b></p>
-      <p style="color:#10b981;">Status: 200 OK (Dynamic Chat ID Responder Active)</p>
+      <h1>⚽ TECH SPORT TV ENGINE IS ONLINE!</h1>
+      <p style="color:#94a3b8;">Channel: <b>@TechxMD1</b> (https://t.me/TechxMD1)</p>
+      <p style="color:#10b981;">Status: 200 OK (Channel Link Linked)</p>
     </div>
   `);
 });
 
-// SEND MESSAGE DIRECTLY TO REQUESTING CHAT OR CHANNEL
+// SEND ALERT TO TELEGRAM CHANNEL @TechxMD1
 async function sendTelegramAlert(targetChatId, message) {
   try {
-    const chatId = targetChatId || DEFAULT_CHANNEL;
+    const chatId = targetChatId || TELEGRAM_CHANNEL_ID;
     const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
     const res = await fetch(url, {
       method: "POST",
@@ -203,16 +203,16 @@ async function fetchRealLiveStandings(leagueCode, leagueName) {
   return null;
 }
 
-// TELEGRAM WEBHOOK (RESPONDS DIRECTLY TO THE REQUESTING CHAT/CHANNEL ID!)
+// TELEGRAM WEBHOOK ENDPOINT
 app.post('/api/telegram-webhook', async (req, res) => {
   try {
     const update = req.body;
     const msg = update.message || update.channel_post || update.edited_channel_post;
 
     if (msg && msg.text) {
-      const targetChatId = msg.chat.id; // Dynamic Chat ID (Target exact channel or chat!)
+      const targetChatId = msg.chat.id || TELEGRAM_CHANNEL_ID;
       const text = msg.text.trim().toLowerCase();
-      console.log(`📩 Command Received in Chat (${targetChatId}): "${text}"`);
+      console.log(`📩 Webhook Received in Chat (${targetChatId}): "${text}"`);
 
       if (text.includes('fixture') || text.includes('fixtures') || text === '/today' || text === '/tomorrow') {
         const { dateStr, label } = parseDateFromText(text);
@@ -238,9 +238,8 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
 // SET WEBHOOK ROUTE
 app.get('/api/set-webhook', async (req, res) => {
-  const host = req.headers.host;
-  const protocol = req.headers['x-forwarded-proto'] || 'https';
-  const webhookUrl = `${protocol}://${host}/api/telegram-webhook`;
+  const domain = "https://tech-sport-tv.vercel.app";
+  const webhookUrl = `${domain}/api/telegram-webhook`;
 
   try {
     await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=true`);
@@ -259,6 +258,12 @@ app.get('/api/set-webhook', async (req, res) => {
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
+});
+
+// DIRECT TEST TO @TechxMD1
+app.get('/api/test-telegram', async (req, res) => {
+  const result = await sendTelegramAlert(TELEGRAM_CHANNEL_ID, "⚽ <b>Tech Sport TV Bot Connected Directly to t.me/TechxMD1!</b>");
+  return res.json({ result });
 });
 
 if (process.env.NODE_ENV !== 'production') {
