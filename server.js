@@ -6,7 +6,7 @@ app.use(express.json());
 
 // REAL TELEGRAM CREDENTIALS
 const TELEGRAM_BOT_TOKEN = "8903172225:AAGqHqHpBRNVXdj7Ic0KadYo_LRza_6DrhE";
-const TELEGRAM_CHANNEL_ID = "@TechxMD1";
+const DEFAULT_CHANNEL = "@TECHX_MD_OFFICIAL";
 
 const ESPN_LEAGUES = [
   { code: "eng.1", name: "🏆 Premier League 🇬🇧" },
@@ -23,28 +23,29 @@ app.get('/', (req, res) => {
   res.status(200).send(`
     <div style="background:#0b1120;color:#2dd4bf;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
       <h1>⚽ TECH SPORT TV WEBHOOK ENGINE IS ONLINE!</h1>
-      <p style="color:#94a3b8;">Telegram Channel: <b>@TechxMD1</b></p>
-      <p style="color:#10b981;">Status: 200 OK (Clean Webhook Architecture)</p>
+      <p style="color:#94a3b8;">Channel: <b>TECHX-MD OFFICIAL</b></p>
+      <p style="color:#10b981;">Status: 200 OK (Dynamic Chat ID Responder Active)</p>
     </div>
   `);
 });
 
-// SEND ALERT TO TELEGRAM CHANNEL
-async function sendTelegramAlert(message) {
+// SEND MESSAGE DIRECTLY TO REQUESTING CHAT OR CHANNEL
+async function sendTelegramAlert(targetChatId, message) {
   try {
+    const chatId = targetChatId || DEFAULT_CHANNEL;
     const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: TELEGRAM_CHANNEL_ID,
+        chat_id: chatId,
         text: message,
         parse_mode: "HTML"
       })
     });
     const data = await res.json();
     if (data.ok) {
-      console.log("✅ TELEGRAM ALERT SENT TO @TechxMD1!");
+      console.log(`✅ TELEGRAM MESSAGE SENT TO (${chatId})!`);
     } else {
       console.error("❌ Telegram Error:", data.description);
     }
@@ -163,79 +164,6 @@ async function fetchRealFixturesForDate(dateStr, dateLabel) {
   return fixturesText;
 }
 
-// REAL LIVE SOCCER SCORE ENGINE
-async function fetchLiveScoresFromESPN() {
-  for (const league of ESPN_LEAGUES) {
-    try {
-      const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${league.code}/scoreboard`;
-      const res = await fetch(url);
-      if (!res.ok) continue;
-
-      const data = await res.json();
-      const events = data.events || [];
-
-      for (const ev of events) {
-        const comp = ev.competitions && ev.competitions[0];
-        if (!comp) continue;
-
-        const home = comp.competitors.find(c => c.homeAway === 'home');
-        const away = comp.competitors.find(c => c.homeAway === 'away');
-        if (!home || !away) continue;
-
-        const matchId = ev.id;
-        const homeName = home.team.name;
-        const awayName = away.team.name;
-        const homeScore = parseInt(home.score || "0", 10);
-        const awayScore = parseInt(away.score || "0", 10);
-        const statusType = ev.status?.type?.name || "";
-        const minute = ev.status?.type?.shortDetail || "LIVE";
-
-        const currentMatch = {
-          id: matchId,
-          league: league.name,
-          homeTeam: homeName,
-          awayTeam: awayName,
-          homeScore: homeScore,
-          awayScore: awayScore,
-          minute: minute,
-          status: statusType
-        };
-
-        const prevMatch = trackedMatches[matchId];
-
-        if (prevMatch) {
-          if (homeScore > prevMatch.homeScore) {
-            const msg = `⚽ <b>GOAL ALERT!</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore}\n🔴 ${awayName} ${awayScore}\n\n⏱️ Minute: ${minute}\n🔥 <b>${homeName}</b> score!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
-            sendTelegramAlert(msg);
-          }
-
-          if (awayScore > prevMatch.awayScore) {
-            const msg = `⚽ <b>GOAL ALERT!</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 ${homeName} ${homeScore}\n🔴 <b>${awayName}</b> ${awayScore}\n\n⏱️ Minute: ${minute}\n🔥 <b>${awayName}</b> score!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
-            sendTelegramAlert(msg);
-          }
-
-          if (statusType === "STATUS_HALFTIME" && prevMatch.status !== "STATUS_HALFTIME") {
-            const msg = `⏸️ <b>HALF TIME STARTED / BREAK</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore} - ${awayScore} ${homeName} 🔴\n\n⏱️ 45' Half Time Intervane\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
-            sendTelegramAlert(msg);
-          }
-
-          if (statusType === "STATUS_IN_PLAY" && prevMatch.status === "STATUS_HALFTIME") {
-            const msg = `🔔 <b>2ND HALF KICK-OFF / STARTED</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 ${homeName} ${homeScore} - ${awayScore} ${awayName} 🔴\n\n⏱️ 2nd Half Underway!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
-            sendTelegramAlert(msg);
-          }
-
-          if ((statusType === "STATUS_FINAL" || statusType === "STATUS_FULL_TIME") && prevMatch.status !== "STATUS_FINAL") {
-            const msg = `🏁 <b>FULL TIME / MATCH ENDED</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore} - ${awayScore} <b>${awayName}</b> 🔴\n\n⏱️ Final Score\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
-            sendTelegramAlert(msg);
-          }
-        }
-
-        trackedMatches[matchId] = currentMatch;
-      }
-    } catch (err) {}
-  }
-}
-
 // FETCH REAL LIVE STANDINGS (1-20)
 async function fetchRealLiveStandings(leagueCode, leagueName) {
   try {
@@ -275,20 +203,21 @@ async function fetchRealLiveStandings(leagueCode, leagueName) {
   return null;
 }
 
-// TELEGRAM WEBHOOK (INSTANT COMMANDS ON VERCEL)
+// TELEGRAM WEBHOOK (RESPONDS DIRECTLY TO THE REQUESTING CHAT/CHANNEL ID!)
 app.post('/api/telegram-webhook', async (req, res) => {
   try {
     const update = req.body;
     const msg = update.message || update.channel_post || update.edited_channel_post;
 
     if (msg && msg.text) {
+      const targetChatId = msg.chat.id; // Dynamic Chat ID (Target exact channel or chat!)
       const text = msg.text.trim().toLowerCase();
-      console.log(`📩 Webhook Command Received: "${text}"`);
+      console.log(`📩 Command Received in Chat (${targetChatId}): "${text}"`);
 
       if (text.includes('fixture') || text.includes('fixtures') || text === '/today' || text === '/tomorrow') {
         const { dateStr, label } = parseDateFromText(text);
         const fixText = await fetchRealFixturesForDate(dateStr, label);
-        await sendTelegramAlert(fixText);
+        await sendTelegramAlert(targetChatId, fixText);
       } else if (text.includes('/table') || text.includes('table')) {
         let leagueCode = 'eng.1', leagueName = 'Premier League';
         if (text.includes('laliga')) { leagueCode = 'esp.1'; leagueName = 'La Liga'; }
@@ -297,7 +226,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
         else if (text.includes('bundesliga')) { leagueCode = 'ger.1'; leagueName = 'Bundesliga'; }
 
         const tableText = await fetchRealLiveStandings(leagueCode, leagueName);
-        if (tableText) await sendTelegramAlert(tableText);
+        if (tableText) await sendTelegramAlert(targetChatId, tableText);
       }
     }
   } catch (e) {
@@ -307,17 +236,15 @@ app.post('/api/telegram-webhook', async (req, res) => {
   return res.status(200).send("OK");
 });
 
-// SET WEBHOOK WITH FULL CHANNEL POST PERMISSIONS
+// SET WEBHOOK ROUTE
 app.get('/api/set-webhook', async (req, res) => {
   const host = req.headers.host;
   const protocol = req.headers['x-forwarded-proto'] || 'https';
   const webhookUrl = `${protocol}://${host}/api/telegram-webhook`;
 
   try {
-    // Delete old webhook first
     await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=true`);
 
-    // Set new webhook with channel_post allowed_updates
     const tgUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`;
     const tgRes = await fetch(tgUrl, {
       method: "POST",
@@ -334,22 +261,8 @@ app.get('/api/set-webhook', async (req, res) => {
   }
 });
 
-// TEST TELEGRAM DIRECTLY FROM VERCEL
-app.get('/api/test-telegram', async (req, res) => {
-  const result = await sendTelegramAlert("⚽ <b>Tech Sport TV Bot is Live & Connected to Vercel!</b>");
-  return res.json({ result });
-});
-
-// VERCEL 24/7 CRON ENDPOINT
-app.all('/api/cron', async (req, res) => {
-  await fetchLiveScoresFromESPN();
-  return res.status(200).json({ success: true, timestamp: new Date().toISOString() });
-});
-
 if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => {
-    console.log(`Server listening on port ${PORT}`);
-  });
+  app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 }
 
 module.exports = app;
