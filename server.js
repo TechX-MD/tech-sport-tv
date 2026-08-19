@@ -18,13 +18,13 @@ const ESPN_LEAGUES = [
 
 let trackedMatches = {};
 
-// ROOT HOMEPAGE ROUTE (Fixes 404 on Vercel)
+// ROOT HOMEPAGE ROUTE
 app.get('/', (req, res) => {
   res.status(200).send(`
     <div style="background:#0b1120;color:#2dd4bf;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
-      <h1>⚽ TECH SPORT TV ENGINE IS ACTIVE & ONLINE!</h1>
+      <h1>⚽ TECH SPORT TV ENGINE IS ONLINE!</h1>
       <p style="color:#94a3b8;">Telegram Channel: <b>@TechxMD1</b></p>
-      <p style="color:#10b981;">Status: 200 OK (Cloud Service Running 24/7)</p>
+      <p style="color:#10b981;">Status: Webhook Active (0.1s Instant Response)</p>
     </div>
   `);
 });
@@ -44,7 +44,7 @@ async function sendTelegramAlert(message) {
     });
     const data = await res.json();
     if (data.ok) {
-      console.log("✅ LIVE ALERT SENT TO @TechxMD1!");
+      console.log("✅ TELEGRAM ALERT SENT TO @TechxMD1!");
     } else {
       console.error("❌ Telegram Error:", data.description);
     }
@@ -85,6 +85,7 @@ function getFormattedDateString(offsetDays = 0) {
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// DYNAMIC DATE PARSER (Parses "22 August 2026", "22 Aug", "today", "tomorrow")
 function parseDateFromText(text) {
   const lower = text.toLowerCase();
   if (lower.includes('today')) return { dateStr: getYYYYMMDD(0), label: getFormattedDateString(0) };
@@ -213,7 +214,7 @@ async function fetchLiveScoresFromESPN() {
           }
 
           if (statusType === "STATUS_HALFTIME" && prevMatch.status !== "STATUS_HALFTIME") {
-            const msg = `⏸️ <b>HALF TIME STARTED / BREAK</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore} - ${awayScore} ${homeName} 🔴\n\n⏱️ 45' Half Time Intervane\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
+            const msg = `⏸️ <b>HALF TIME STARTED / BREAK</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore} - ${awayScore} ${awayName} 🔴\n\n⏱️ 45' Half Time Intervane\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
             sendTelegramAlert(msg);
           }
 
@@ -273,47 +274,57 @@ async function fetchRealLiveStandings(leagueCode, leagueName) {
   return null;
 }
 
-// TELEGRAM BOT COMMAND LISTENER
-let lastUpdateId = 0;
-async function pollTelegramBotCommands() {
+// TELEGRAM WEBHOOK ENDPOINT (INSTANT COMMANDS ON VERCEL)
+app.post('/api/telegram-webhook', async (req, res) => {
   try {
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${lastUpdateId + 1}&timeout=3`;
-    const res = await fetch(url);
-    const data = await res.json();
+    const update = req.body;
+    const msg = update.message || update.channel_post || update.edited_channel_post;
 
-    if (data.ok && data.result && data.result.length > 0) {
-      for (const update of data.result) {
-        lastUpdateId = update.update_id;
+    if (msg && msg.text) {
+      const text = msg.text.trim().toLowerCase();
+      console.log(`📩 Webhook Command Received: "${text}"`);
 
-        const msg = update.message || update.channel_post || update.edited_channel_post;
-        if (!msg || !msg.text) continue;
+      if (text.includes('fixture') || text.includes('fixtures') || text === '/today' || text === '/tomorrow') {
+        const { dateStr, label } = parseDateFromText(text);
+        const fixText = await fetchRealFixturesForDate(dateStr, label);
+        await sendTelegramAlert(fixText);
+      } else if (text.includes('/table') || text.includes('table')) {
+        let leagueCode = 'eng.1', leagueName = 'Premier League';
+        if (text.includes('laliga')) { leagueCode = 'esp.1'; leagueName = 'La Liga'; }
+        else if (text.includes('cl') || text.includes('champions')) { leagueCode = 'uefa.champions'; leagueName = 'Champions League'; }
+        else if (text.includes('seriea')) { leagueCode = 'ita.1'; leagueName = 'Serie A'; }
+        else if (text.includes('bundesliga')) { leagueCode = 'ger.1'; leagueName = 'Bundesliga'; }
 
-        const text = msg.text.trim().toLowerCase();
-        console.log(`📩 Command Received: "${text}"`);
-
-        if (text.includes('fixture') || text.includes('fixtures') || text === '/today' || text === '/tomorrow') {
-          const { dateStr, label } = parseDateFromText(text);
-          const fixText = await fetchRealFixturesForDate(dateStr, label);
-          await sendTelegramAlert(fixText);
-        } else if (text.includes('/table') || text.includes('table')) {
-          let leagueCode = 'eng.1', leagueName = 'Premier League';
-          if (text.includes('laliga')) { leagueCode = 'esp.1'; leagueName = 'La Liga'; }
-          else if (text.includes('cl') || text.includes('champions')) { leagueCode = 'uefa.champions'; leagueName = 'Champions League'; }
-          else if (text.includes('seriea')) { leagueCode = 'ita.1'; leagueName = 'Serie A'; }
-          else if (text.includes('bundesliga')) { leagueCode = 'ger.1'; leagueName = 'Bundesliga'; }
-
-          const tableText = await fetchRealLiveStandings(leagueCode, leagueName);
-          if (tableText) await sendTelegramAlert(tableText);
-        }
+        const tableText = await fetchRealLiveStandings(leagueCode, leagueName);
+        if (tableText) await sendTelegramAlert(tableText);
       }
     }
-  } catch (e) {}
-}
+  } catch (e) {
+    console.error("Webhook processing error:", e.message);
+  }
 
-// VERCEL 24/7 AUTOMATED CRON ENDPOINT
+  return res.status(200).send("OK");
+});
+
+// 1-CLICK WEBHOOK ACTIVATION ROUTE
+app.get('/api/set-webhook', async (req, res) => {
+  const host = req.headers.host;
+  const protocol = req.headers['x-forwarded-proto'] || 'https';
+  const webhookUrl = `${protocol}://${host}/api/telegram-webhook`;
+
+  try {
+    const tgUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${encodeURIComponent(webhookUrl)}`;
+    const tgRes = await fetch(tgUrl);
+    const data = await tgRes.json();
+    return res.json({ success: data.ok, telegramResponse: data, webhookUrl });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// VERCEL 24/7 CRON ENDPOINT
 app.all('/api/cron', async (req, res) => {
   await fetchLiveScoresFromESPN();
-  await pollTelegramBotCommands();
   return res.status(200).json({ success: true, timestamp: new Date().toISOString() });
 });
 
