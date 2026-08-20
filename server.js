@@ -8,7 +8,7 @@ app.use(express.json());
 const TELEGRAM_BOT_TOKEN = "8903172225:AAGqHqHpBRNVXdj7Ic0KadYo_LRza_6DrhE";
 const TELEGRAM_CHANNEL_ID = "@TechxMD1";
 
-// ALL GLOBAL LEAGUES (Including Saudi Arabia Pro League & MLS Inter Miami)
+// GLOBAL LEAGUES (Including Saudi Pro League & MLS)
 const ESPN_LEAGUES = [
   { code: "eng.1", name: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League", key: "epl" },
   { code: "esp.1", name: "🇪🇸 LaLiga", key: "laliga" },
@@ -27,9 +27,9 @@ let trackedMatches = {};
 app.get('/', (req, res) => {
   res.status(200).send(`
     <div style="background:#0b1120;color:#2dd4bf;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
-      <h1>⚽ TECH SPORT TV GLOBAL ENGINE ONLINE!</h1>
+      <h1>⚽ TECH SPORT TV SAUDI PRO LEAGUE & GLOBAL ENGINE ONLINE!</h1>
       <p style="color:#94a3b8;">Telegram Channel: <b>@TechxMD1</b></p>
-      <p style="color:#10b981;">Status: 200 OK (Global Soccer + Saudi + MLS Active)</p>
+      <p style="color:#10b981;">Status: 200 OK (Saudi Pro League + MLS Active)</p>
     </div>
   `);
 });
@@ -122,7 +122,7 @@ function parseDateFromText(text) {
   return { dateStr: getYYYYMMDD(0), label: getFormattedDateString(0) };
 }
 
-// GENERATE DYNAMIC ALL LIVE MATCHES BULLETIN (With "NO LIVE EVENTS NOW")
+// GENERATE DYNAMIC ALL LIVE MATCHES BULLETIN
 async function fetchRealLiveMatchesBulletin() {
   let bulletin = `🔴 <b>TECH SPORT TV — LIVE MATCHES BULLETIN</b>\n━━━━━━━━━━━━━━━\n\n`;
   let liveCount = 0;
@@ -227,7 +227,7 @@ async function fetchRealFixturesForDate(dateStr, dateLabel) {
   return fixturesText;
 }
 
-// REAL LIVE SOCCER SCORE ENGINE WITH GOALSCORER NAMES & TRANSITION LOCK
+// REAL LIVE SOCCER SCORE ENGINE WITH GOALSCORERS & LOCK
 async function fetchLiveScoresFromESPN() {
   for (const league of ESPN_LEAGUES) {
     try {
@@ -251,14 +251,13 @@ async function fetchLiveScoresFromESPN() {
         const awayName = away.team.name;
         const homeScore = parseInt(home.score || "0", 10);
         const awayScore = parseInt(away.score || "0", 10);
-        const state = ev.status?.type?.state || ""; // 'pre', 'in', 'post'
+        const state = ev.status?.type?.state || "";
         const statusType = ev.status?.type?.name || "";
         const rawDetail = ev.status?.type?.shortDetail || ev.status?.type?.detail || "";
         const minuteAdjusted = adjustLiveMinute(rawDetail);
 
         const isCurrentlyHalftime = statusType.includes("HALFTIME") || rawDetail.toLowerCase().includes("ht") || rawDetail.toLowerCase().includes("half time");
 
-        // EXTRACT REAL GOALSCORER NAME
         let lastScorerName = "Goal Scored";
         if (comp.details && comp.details.length > 0) {
           const lastDetail = comp.details[comp.details.length - 1];
@@ -354,7 +353,7 @@ async function fetchRealLiveStandings(leagueCode, leagueName) {
   return null;
 }
 
-// TELEGRAM WEBHOOK
+// TELEGRAM WEBHOOK (Includes Saudi Pro League & MLS Table Matching)
 app.post('/api/telegram-webhook', async (req, res) => {
   try {
     const update = req.body;
@@ -379,8 +378,8 @@ app.post('/api/telegram-webhook', async (req, res) => {
         else if (text.includes('ligue1')) { leagueCode = 'fra.1'; leagueName = 'Ligue 1'; }
         else if (text.includes('championship')) { leagueCode = 'eng.2'; leagueName = 'Championship'; }
         else if (text.includes('cl') || text.includes('champions')) { leagueCode = 'uefa.champions'; leagueName = 'Champions League'; }
-        else if (text.includes('saudi')) { leagueCode = 'sau.1'; leagueName = 'Saudi Pro League'; }
-        else if (text.includes('mls')) { leagueCode = 'usa.1'; leagueName = 'MLS'; }
+        else if (text.includes('saudi') || text.includes('ronaldo') || text.includes('pro league')) { leagueCode = 'sau.1'; leagueName = 'Saudi Pro League'; }
+        else if (text.includes('mls') || text.includes('messi') || text.includes('inter miami')) { leagueCode = 'usa.1'; leagueName = 'MLS Inter Miami'; }
 
         const tableText = await fetchRealLiveStandings(leagueCode, leagueName);
         if (tableText) await sendTelegramAlert(targetChatId, tableText);
