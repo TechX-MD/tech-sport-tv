@@ -8,7 +8,6 @@ app.use(express.json());
 const TELEGRAM_BOT_TOKEN = "8903172225:AAGqHqHpBRNVXdj7Ic0KadYo_LRza_6DrhE";
 const TELEGRAM_CHANNEL_ID = "@TechxMD1";
 
-// EXACT 7 LEAGUES FROM YOUR IMAGE
 const ESPN_LEAGUES = [
   { code: "eng.1", name: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League" },
   { code: "esp.1", name: "🇪🇸 LaLiga" },
@@ -19,15 +18,16 @@ const ESPN_LEAGUES = [
   { code: "uefa.champions", name: "🇪🇺 Champions League" }
 ];
 
+// Persistent Match Memory State
 let trackedMatches = {};
 
 // ROOT ROUTE
 app.get('/', (req, res) => {
   res.status(200).send(`
     <div style="background:#0b1120;color:#2dd4bf;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
-      <h1>⚽ TECH SPORT TV FINAL PRODUCTION ENGINE ACTIVE!</h1>
+      <h1>⚽ TECH SPORT TV ENGINE ACTIVE!</h1>
       <p style="color:#94a3b8;">Telegram Channel: <b>@TechxMD1</b></p>
-      <p style="color:#10b981;">Status: 200 OK (All Features Production Verified)</p>
+      <p style="color:#10b981;">Status: 200 OK (Transition-Only Alert Lock Active)</p>
     </div>
   `);
 });
@@ -54,7 +54,7 @@ async function sendTelegramAlert(targetChatId, message) {
   }
 }
 
-// TIME HELPER: AFRICA (CAT) & UK TIME
+// TIME HELPER
 function formatMatchTimes(dateIsoString) {
   if (!dateIsoString) return "TBD";
   const d = new Date(dateIsoString);
@@ -110,7 +110,7 @@ function parseDateFromText(text) {
   return { dateStr: getYYYYMMDD(0), label: getFormattedDateString(0) };
 }
 
-// GENERATE DYNAMIC ALL LIVE MATCHES BULLETIN WITH EXACT LIVE MINUTES
+// GENERATE DYNAMIC ALL LIVE MATCHES BULLETIN
 async function fetchRealLiveMatchesBulletin() {
   let bulletin = `🔴 <b>TECH SPORT TV — LIVE MATCHES BULLETIN</b>\n━━━━━━━━━━━━━━━\n\n`;
   let liveCount = 0;
@@ -213,7 +213,7 @@ async function fetchRealFixturesForDate(dateStr, dateLabel) {
   return fixturesText;
 }
 
-// REAL LIVE SOCCER SCORE ENGINE WITH GOALSCORERS & ACCURATE LIFECYCLE
+// REAL LIVE SOCCER SCORE ENGINE (TRANSITION-ONLY ALERTS - NO SPAM FOR OLD MATCHES)
 async function fetchLiveScoresFromESPN() {
   for (const league of ESPN_LEAGUES) {
     try {
@@ -251,70 +251,64 @@ async function fetchLiveScoresFromESPN() {
           }
         }
 
-        const prevMatch = trackedMatches[matchId] || {
-          homeScore,
-          awayScore,
-          isHalftime: isCurrentlyHalftime,
-          state: state,
-          secondHalfAlertSent: false,
-          halftimeAlertSent: false,
-          kickoffAlertSent: false,
-          fulltimeAlertSent: false,
-          countdown30AlertSent: false
-        };
+        const prevMatch = trackedMatches[matchId];
 
-        // 1. 30-MIN COUNTDOWN
-        const matchTime = new Date(ev.date).getTime();
-        const timeDiffMins = (matchTime - Date.now()) / (1000 * 60);
-        if (state === 'pre' && timeDiffMins > 0 && timeDiffMins <= 30 && !prevMatch.countdown30AlertSent) {
-          const timeFormatted = formatMatchTimes(ev.date);
-          const msg = `⏰ <b>MATCH COUNTDOWN (30 MINS TO KICK-OFF)</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> vs 🔴 <b>${awayName}</b>\n\n⏱️ Kick-off: <b>${timeFormatted}</b>\n🔥 Get ready for the big clash!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
-          await sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
-          prevMatch.countdown30AlertSent = true;
+        // INITIAL LOAD: Save state and DO NOT send any alerts on old/finished matches!
+        if (!prevMatch) {
+          trackedMatches[matchId] = {
+            id: matchId,
+            league: league.name,
+            homeTeam: homeName,
+            awayTeam: awayName,
+            homeScore,
+            awayScore,
+            isHalftime: isCurrentlyHalftime,
+            state,
+            status: statusType
+          };
+          continue; // Skip alerting for initial load
         }
 
-        // 2. KICK-OFF ALERT
-        if (state === 'in' && !isCurrentlyHalftime && !prevMatch.kickoffAlertSent) {
-          const msg = `🔔 <b>KICK-OFF! MATCH STARTED</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 ${homeName} 0 - 0 ${awayName} 🔴\n\n⏱️ 1st Half Underway!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
+        // ONLY TRIGGER ALERTS ON REAL TRANSITIONS!
+
+        // 1. KICK-OFF ALERT
+        if (state === 'in' && prevMatch.state === 'pre') {
+          const msg = `🔔 <b>KICK-OFF! MATCH STARTED</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 ${homeName} 0 - 0 ${awayName} 🔴\n\n⏱️ Match Underway!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
           await sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
-          prevMatch.kickoffAlertSent = true;
         }
 
-        // 3. GOAL ALERT HOME
-        if (homeScore > prevMatch.homeScore) {
+        // 2. GOAL ALERT HOME
+        if (homeScore > prevMatch.homeScore && state === 'in') {
           const msg = `⚽ <b>GOAL ALERT!</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore}\n🔴 ${awayName} ${awayScore}\n\n⏱️ Minute: <b>${detailText}</b>\n⚽ <b>Goalscorer:</b> ${lastScorerName}\n🔥 <b>${homeName}</b> score!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
           await sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
         }
 
-        // 4. GOAL ALERT AWAY
-        if (awayScore > prevMatch.awayScore) {
+        // 3. GOAL ALERT AWAY
+        if (awayScore > prevMatch.awayScore && state === 'in') {
           const msg = `⚽ <b>GOAL ALERT!</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 ${homeName} ${homeScore}\n🔴 <b>${awayName}</b> ${awayScore}\n\n⏱️ Minute: <b>${detailText}</b>\n⚽ <b>Goalscorer:</b> ${lastScorerName}\n🔥 <b>${awayName}</b> score!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
           await sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
         }
 
-        // 5. HALFTIME STARTED
-        if (isCurrentlyHalftime && !prevMatch.halftimeAlertSent) {
+        // 4. HALFTIME STARTED
+        if (isCurrentlyHalftime && !prevMatch.isHalftime) {
           const msg = `⏸️ <b>HALF TIME STARTED / BREAK</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore} - ${awayScore} <b>${awayName}</b> 🔴\n\n⏱️ 45' Half Time Intervane\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
           await sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
-          prevMatch.halftimeAlertSent = true;
         }
 
-        // 6. 2ND HALF KICK-OFF
-        if (prevMatch.isHalftime && !isCurrentlyHalftime && state === 'in' && !prevMatch.secondHalfAlertSent) {
+        // 5. 2ND HALF KICK-OFF
+        if (prevMatch.isHalftime && !isCurrentlyHalftime && state === 'in') {
           const msg = `🔔 <b>2ND HALF KICK-OFF / STARTED</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 ${homeName} ${homeScore} - ${awayScore} ${awayName} 🔴\n\n⏱️ 2nd Half Underway!\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
           await sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
-          prevMatch.secondHalfAlertSent = true;
         }
 
-        // 7. REAL FULL TIME (Triggers ONLY when official state === 'post')
-        if (state === 'post' && !prevMatch.fulltimeAlertSent) {
+        // 6. REAL FULL TIME (Only when transitioning from 'in' to 'post')
+        if (state === 'post' && prevMatch.state === 'in') {
           const msg = `🏁 <b>MATCH ENDED / FULL TIME</b>\n━━━━━━━━━━━━━━━\n${league.name}\n\n🔵 <b>${homeName}</b> ${homeScore} - ${awayScore} <b>${awayName}</b> 🔴\n\n⏱️ Final Score\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
           await sendTelegramAlert(TELEGRAM_CHANNEL_ID, msg);
-          prevMatch.fulltimeAlertSent = true;
         }
 
+        // Update state
         trackedMatches[matchId] = {
-          ...prevMatch,
           id: matchId,
           league: league.name,
           homeTeam: homeName,
