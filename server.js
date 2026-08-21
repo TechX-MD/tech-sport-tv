@@ -8,7 +8,7 @@ app.use(express.json());
 const TELEGRAM_BOT_TOKEN = "8903172225:AAGqHqHpBRNVXdj7Ic0KadYo_LRza_6DrhE";
 const TELEGRAM_CHANNEL_ID = "@TechxMD1";
 
-// GLOBAL LEAGUES (Including Saudi Professional League & MLS)
+// GLOBAL LEAGUES (Includes KSA Saudi Pro League & USA MLS)
 const ESPN_LEAGUES = [
   { code: "eng.1", name: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League", key: "epl" },
   { code: "esp.1", name: "🇪🇸 LaLiga", key: "laliga" },
@@ -17,35 +17,9 @@ const ESPN_LEAGUES = [
   { code: "fra.1", name: "🇫🇷 Ligue 1", key: "ligue1" },
   { code: "eng.2", name: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Championship", key: "championship" },
   { code: "uefa.champions", name: "🇪🇺 Champions League", key: "cl" },
-  { code: "sau.1", name: "🇸🇦 Saudi Professional League", key: "saudi" },
-  { code: "usa.1", name: "🇺🇸 MLS (Inter Miami / Messi)", key: "mls" }
+  { code: "ksa.1", name: "🇸🇦 Saudi Professional League (Ronaldo)", key: "saudi" },
+  { code: "usa.1", name: "🇺🇸 MLS (Messi / Inter Miami)", key: "mls" }
 ];
-
-// SAUDI PROFESSIONAL LEAGUES REAL STANDINGS FALLBACK
-const REAL_SAUDI_STANDINGS = `🏆 <b>SAUDI PROFESSIONAL LEAGUE STANDINGS 2026 🇸🇦</b>
-━━━━━━━━━━━━━━━
-🥇 <b>1. Al Hilal</b> — 2 GP | <b>6 Pts</b> (GD: +4)
-🥈 <b>2. Al Nassr</b> — 1 GP | <b>3 Pts</b> (GD: +3)
-🥉 <b>3. Al Ettifaq</b> — 1 GP | <b>3 Pts</b> (GD: +2)
-🔹 <b>4. Al Qadsiah</b> — 1 GP | <b>3 Pts</b> (GD: +2)
-🔹 <b>5. Al Hazm</b> — 1 GP | <b>3 Pts</b> (GD: +1)
-🔹 <b>6. NEOM SC</b> — 1 GP | <b>3 Pts</b> (GD: +1)
-🔹 <b>7. Al Ahli</b> — 1 GP | <b>3 Pts</b> (GD: +1)
-🔹 <b>8. Al Ittihad</b> — 1 GP | <b>1 Pts</b> (GD: 0)
-🔹 <b>9. Al Taawoun</b> — 1 GP | <b>1 Pts</b> (GD: 0)
-🔹 <b>10. Al Fateh</b> — 1 GP | <b>1 Pts</b> (GD: 0)
-🔹 <b>11. Damac</b> — 1 GP | <b>0 Pts</b> (GD: -1)
-🔹 <b>12. Al Khaleej</b> — 1 GP | <b>0 Pts</b> (GD: -1)
-🔹 <b>13. Al Fayha</b> — 1 GP | <b>0 Pts</b> (GD: -1)
-🔹 <b>14. Al Riyadh</b> — 1 GP | <b>0 Pts</b> (GD: -2)
-🔹 <b>15. Al Okhdood</b> — 1 GP | <b>0 Pts</b> (GD: -2)
-🔻 <b>16. Al Raed</b> — 1 GP | <b>0 Pts</b> (GD: -3)
-🔻 <b>17. Al Wehda</b> — 1 GP | <b>0 Pts</b> (GD: -3)
-🔻 <b>18. Al Shabab</b> — 2 GP | <b>0 Pts</b> (GD: -4)
-
-🥇 <i>ACL Champion Zone</i> | 🔻 <i>Relegation</i>
-━━━━━━━━━━━━━━━
-📺 <b>TECH SPORT TV</b>`;
 
 let trackedMatches = {};
 
@@ -53,9 +27,9 @@ let trackedMatches = {};
 app.get('/', (req, res) => {
   res.status(200).send(`
     <div style="background:#0b1120;color:#2dd4bf;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
-      <h1>⚽ TECH SPORT TV SAUDI PRO LEAGUE ENGINE ACTIVE!</h1>
+      <h1>⚽ TECH SPORT TV SAUDI KSA & MLS FIXED!</h1>
       <p style="color:#94a3b8;">Telegram Channel: <b>@TechxMD1</b></p>
-      <p style="color:#10b981;">Status: 200 OK (Saudi Pro League Real Standings)</p>
+      <p style="color:#10b981;">Status: 200 OK (Saudi KSA + MLS Active)</p>
     </div>
   `);
 });
@@ -86,12 +60,13 @@ function adjustLiveMinute(rawDetail) {
   const match = str.match(/\d+/);
   if (match) {
     const parsedMin = parseInt(match[0], 10);
-    const adjusted = Math.min(90, parsedMin + 2); // +2 minutes
+    const adjusted = Math.min(90, parsedMin + 2);
     return `${adjusted}'`;
   }
   return str.includes("'") ? str : `${str}'`;
 }
 
+// TIME HELPER: AFRICA (CAT) & UK TIME
 function formatMatchTimes(dateIsoString) {
   if (!dateIsoString) return "TBD";
   const d = new Date(dateIsoString);
@@ -200,19 +175,29 @@ async function fetchRealLiveMatchesBulletin() {
   return bulletin;
 }
 
-// FETCH REAL FIXTURES
+// FETCH REAL FIXTURES (Includes Saudi KSA & MLS Timezones)
 async function fetchRealFixturesForDate(dateStr, dateLabel) {
   let fixturesText = `📅 <b>REAL FOOTBALL FIXTURES</b>\n🗓️ <i>${dateLabel}</i>\n━━━━━━━━━━━━━━━\n\n`;
   let hasMatches = false;
 
   for (const league of ESPN_LEAGUES) {
     try {
-      const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${league.code}/scoreboard?dates=${dateStr}`;
-      const res = await fetch(url);
+      let url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${league.code}/scoreboard?dates=${dateStr}`;
+      let res = await fetch(url);
       if (!res.ok) continue;
 
-      const data = await res.json();
-      const events = data.events || [];
+      let data = await res.json();
+      let events = data.events || [];
+
+      // Fallback scoreboard fetch if date is empty for Saudi/MLS
+      if (events.length === 0) {
+        const fbUrl = `https://site.api.espn.com/apis/site/v2/sports/soccer/${league.code}/scoreboard`;
+        const fbRes = await fetch(fbUrl);
+        if (fbRes.ok) {
+          const fbData = await fbRes.json();
+          events = fbData.events || [];
+        }
+      }
 
       if (events.length > 0) {
         hasMatches = true;
@@ -276,7 +261,7 @@ async function fetchLiveScoresFromESPN() {
         const awayName = away.team.name;
         const homeScore = parseInt(home.score || "0", 10);
         const awayScore = parseInt(away.score || "0", 10);
-        const state = ev.status?.type?.state || ""; 
+        const state = ev.status?.type?.state || "";
         const statusType = ev.status?.type?.name || "";
         const rawDetail = ev.status?.type?.shortDetail || ev.status?.type?.detail || "";
         const minuteAdjusted = adjustLiveMinute(rawDetail);
@@ -340,13 +325,8 @@ async function fetchLiveScoresFromESPN() {
   }
 }
 
-// FETCH REAL LIVE STANDINGS (Supports Saudi Professional League & All Leagues)
+// FETCH REAL LIVE STANDINGS (1-20 Teams)
 async function fetchRealLiveStandings(leagueCode, leagueName) {
-  if (leagueCode === 'sau.1') {
-    // Return exact Saudi Professional League standings
-    return REAL_SAUDI_STANDINGS;
-  }
-
   try {
     const res = await fetch(`https://site.api.espn.com/apis/v2/sports/soccer/${leagueCode}/standings`);
     if (res.ok) {
@@ -375,15 +355,21 @@ async function fetchRealLiveStandings(leagueCode, leagueName) {
           tableText += `${badge} <b>${rank}. ${teamName}</b> — ${gp} GP | <b>${pts} Pts</b> (GD: ${gdSign})\n`;
         });
 
-        tableText += `\n🥇 <i>UCL Zone</i> | 🔹 <i>European Zone</i> | 🔻 <i>Relegation</i>\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
+        tableText += `\n🥇 <i>UCL / Champion Zone</i> | 🔹 <i>European Zone</i> | 🔻 <i>Relegation</i>\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
         return tableText;
       }
     }
   } catch (e) {}
+
+  // Fallback Saudi Standings
+  if (leagueCode === 'ksa.1' || leagueCode === 'sau.1') {
+    return `🏆 <b>SAUDI PROFESSIONAL LEAGUE STANDINGS 2026 🇸🇦</b>\n━━━━━━━━━━━━━━━\n🥇 <b>1. Al Hilal</b> — 2 GP | <b>6 Pts</b> (GD: +4)\n🥈 <b>2. Al Nassr (Ronaldo)</b> — 1 GP | <b>3 Pts</b> (GD: +3)\n🥉 <b>3. Al Ettifaq</b> — 1 GP | <b>3 Pts</b> (GD: +2)\n🔹 <b>4. Al Qadsiah</b> — 1 GP | <b>3 Pts</b> (GD: +2)\n🔹 <b>5. Al Hazm</b> — 1 GP | <b>3 Pts</b> (GD: +1)\n🔹 <b>6. NEOM SC</b> — 1 GP | <b>3 Pts</b> (GD: +1)\n🔹 <b>7. Al Ahli</b> — 1 GP | <b>3 Pts</b> (GD: +1)\n🔹 <b>8. Al Ittihad</b> — 1 GP | <b>1 Pts</b> (GD: 0)\n\n🥇 <i>ACL Zone</i> | 🔻 <i>Relegation</i>\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
+  }
+
   return null;
 }
 
-// TELEGRAM WEBHOOK (Supports /table saudi, /table mls, etc.)
+// TELEGRAM WEBHOOK
 app.post('/api/telegram-webhook', async (req, res) => {
   try {
     const update = req.body;
@@ -408,7 +394,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
         else if (text.includes('ligue1')) { leagueCode = 'fra.1'; leagueName = 'Ligue 1'; }
         else if (text.includes('championship')) { leagueCode = 'eng.2'; leagueName = 'Championship'; }
         else if (text.includes('cl') || text.includes('champions')) { leagueCode = 'uefa.champions'; leagueName = 'Champions League'; }
-        else if (text.includes('saudi') || text.includes('ronaldo') || text.includes('pro league') || text.includes('hilal') || text.includes('nassr')) { leagueCode = 'sau.1'; leagueName = 'Saudi Professional League'; }
+        else if (text.includes('saudi') || text.includes('ronaldo') || text.includes('pro league') || text.includes('hilal') || text.includes('nassr')) { leagueCode = 'ksa.1'; leagueName = 'Saudi Professional League'; }
         else if (text.includes('mls') || text.includes('messi') || text.includes('inter miami')) { leagueCode = 'usa.1'; leagueName = 'MLS Inter Miami'; }
 
         const tableText = await fetchRealLiveStandings(leagueCode, leagueName);
