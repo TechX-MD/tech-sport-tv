@@ -8,19 +8,18 @@ app.use(express.json());
 const TELEGRAM_BOT_TOKEN = "8903172225:AAGqHqHpBRNVXdj7Ic0KadYo_LRza_6DrhE";
 const TELEGRAM_CHANNEL_ID = "@TechxMD1";
 
-// ALL GLOBAL LEAGUES (Including SAU.1, KSA.1, SAU.2 for Saudi Pro League & Div 1)
+// 10 GLOBAL LEAGUES
 const ESPN_LEAGUES = [
-  { code: "eng.1", name: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League", key: "epl" },
-  { code: "esp.1", name: "🇪🇸 LaLiga", key: "laliga" },
-  { code: "ger.1", name: "🇩🇪 Bundesliga", key: "bundesliga" },
-  { code: "ita.1", name: "🇮🇹 Serie A", key: "seriea" },
-  { code: "fra.1", name: "🇫🇷 Ligue 1", key: "ligue1" },
-  { code: "eng.2", name: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Championship", key: "championship" },
-  { code: "uefa.champions", name: "🇪🇺 Champions League", key: "cl" },
-  { code: "sau.1", name: "🇸🇦 Saudi Professional League (Al Nassr)", key: "saudi" },
-  { code: "ksa.1", name: "🇸🇦 Saudi Pro League KSA", key: "saudi" },
-  { code: "sau.2", name: "🇸🇦 Saudi Division 1", key: "saudi" },
-  { code: "usa.1", name: "🇺🇸 MLS (Messi / Inter Miami)", key: "mls" }
+  { code: "eng.1", name: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League" },
+  { code: "esp.1", name: "🇪🇸 LaLiga" },
+  { code: "ger.1", name: "🇩🇪 Bundesliga" },
+  { code: "ita.1", name: "🇮🇹 Serie A" },
+  { code: "fra.1", name: "🇫🇷 Ligue 1" },
+  { code: "eng.2", name: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Championship" },
+  { code: "uefa.champions", name: "🇪🇺 Champions League" },
+  { code: "sau.1", name: "🇸🇦 Saudi Pro League (Al Nassr)" },
+  { code: "ksa.1", name: "🇸🇦 Saudi Pro League KSA" },
+  { code: "usa.1", name: "🇺🇸 MLS (Inter Miami / Messi)" }
 ];
 
 let trackedMatches = {};
@@ -29,14 +28,14 @@ let trackedMatches = {};
 app.get('/', (req, res) => {
   res.status(200).send(`
     <div style="background:#0b1120;color:#2dd4bf;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
-      <h1>⚽ TECH SPORT TV ALL LEAGUES ACTIVE!</h1>
+      <h1>⚽ TECH SPORT TV COMBINED ENGINE ONLINE!</h1>
       <p style="color:#94a3b8;">Telegram Channel: <b>@TechxMD1</b></p>
-      <p style="color:#10b981;">Status: 200 OK (Saudi sau.1 + ksa.1 + sau.2 Fixed)</p>
+      <p style="color:#10b981;">Status: 200 OK (Live Matches & Fixtures Combined)</p>
     </div>
   `);
 });
 
-// SEND ALERT TO TELEGRAM CHANNEL
+// SEND ALERT TO TELEGRAM
 async function sendTelegramAlert(targetChatId, message) {
   try {
     const chatId = targetChatId || TELEGRAM_CHANNEL_ID;
@@ -52,7 +51,7 @@ async function sendTelegramAlert(targetChatId, message) {
   }
 }
 
-// LIVE MINUTE SYNC (+2 Minutes Ahead for TV Sync)
+// LIVE MINUTE SYNC (+2 Minutes)
 function adjustLiveMinute(rawDetail) {
   if (!rawDetail) return "LIVE 🔴";
   const str = String(rawDetail).trim();
@@ -68,7 +67,6 @@ function adjustLiveMinute(rawDetail) {
   return str.includes("'") ? str : `${str}'`;
 }
 
-// TIME HELPER: AFRICA (CAT) & UK TIME
 function formatMatchTimes(dateIsoString) {
   if (!dateIsoString) return "TBD";
   const d = new Date(dateIsoString);
@@ -124,121 +122,79 @@ function parseDateFromText(text) {
   return { dateStr: getYYYYMMDD(0), label: getFormattedDateString(0) };
 }
 
-// GENERATE ALL LIVE MATCHES BULLETIN
-async function fetchRealLiveMatchesBulletin() {
-  let bulletin = `🔴 <b>TECH SPORT TV — LIVE MATCHES BULLETIN</b>\n━━━━━━━━━━━━━━━\n\n`;
+// COMBINED DUAL BULLETIN (LIVE MATCHES + UPCOMING FIXTURES)
+async function generateCombinedBulletin(dateStr, dateLabel) {
+  let liveText = "";
+  let upcomingText = "";
   let liveCount = 0;
-  let seenMatchIds = new Set();
+  let upcomingCount = 0;
+  let seenIds = new Set();
 
   for (const league of ESPN_LEAGUES) {
     try {
-      const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${league.code}/scoreboard`;
+      const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${league.code}/scoreboard?dates=${dateStr || getYYYYMMDD(0)}`;
       const res = await fetch(url);
       if (!res.ok) continue;
 
       const data = await res.json();
       const events = data.events || [];
 
-      const inPlayEvents = events.filter(ev => {
+      let leagueLiveHTML = "";
+      let leagueUpcomingHTML = "";
+
+      events.forEach(ev => {
+        if (seenIds.has(ev.id)) return;
+        seenIds.add(ev.id);
+
+        const comp = ev.competitions && ev.competitions[0];
+        if (!comp) return;
+
+        const home = comp.competitors.find(c => c.homeAway === 'home')?.team?.name || 'Home';
+        const away = comp.competitors.find(c => c.homeAway === 'away')?.team?.name || 'Away';
         const state = ev.status?.type?.state;
         const stName = ev.status?.type?.name || "";
-        return (state === 'in' || stName.includes('PLAY') || stName.includes('HALF')) && !seenMatchIds.has(ev.id);
-      });
 
-      if (inPlayEvents.length > 0) {
-        bulletin += `${league.name}\n`;
-        inPlayEvents.forEach(ev => {
-          seenMatchIds.add(ev.id);
+        if (state === 'in' || stName.includes('PLAY') || stName.includes('HALF')) {
           liveCount++;
-          const comp = ev.competitions && ev.competitions[0];
-          const home = comp.competitors.find(c => c.homeAway === 'home');
-          const away = comp.competitors.find(c => c.homeAway === 'away');
-          
-          const rawDetail = ev.status?.type?.shortDetail || ev.status?.displayClock || 'LIVE';
+          const hScore = comp.competitors.find(c => c.homeAway === 'home')?.score || '0';
+          const aScore = comp.competitors.find(c => c.homeAway === 'away')?.score || '0';
+          const rawDetail = ev.status?.type?.shortDetail || 'LIVE';
           const displayMin = adjustLiveMinute(rawDetail);
 
-          const hName = home?.team?.name || 'Home';
-          const aName = away?.team?.name || 'Away';
-          const hScore = home?.score || '0';
-          const aScore = away?.score || '0';
-
-          bulletin += `• 🔵 <b>${hName}</b> ${hScore} - ${aScore} 🔴 <b>${aName}</b> (⏱️ ${displayMin} | LIVE 🔴)\n`;
-        });
-        bulletin += `\n`;
-      }
-    } catch (e) {}
-  }
-
-  if (liveCount === 0) {
-    const noLiveHeader = `🚫 <b>NO LIVE EVENTS NOW</b>\n━━━━━━━━━━━━━━━\n\n`;
-    const todayFixtures = await fetchRealFixturesForDate(getYYYYMMDD(0), "TODAY'S SCHEDULED MATCHES");
-    return noLiveHeader + todayFixtures;
-  }
-
-  bulletin += `📌 <i>Live Scores Updated (+2m TV Sync)</i>\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
-  return bulletin;
-}
-
-// FETCH REAL FIXTURES (EXCLUDES FINISHED MATCHES)
-async function fetchRealFixturesForDate(dateStr, dateLabel) {
-  let fixturesText = `📅 <b>REAL FOOTBALL FIXTURES</b>\n🗓️ <i>${dateLabel}</i>\n━━━━━━━━━━━━━━━\n\n`;
-  let hasMatches = false;
-  let seenMatchIds = new Set();
-
-  for (const league of ESPN_LEAGUES) {
-    try {
-      const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${league.code}/scoreboard?dates=${dateStr}`;
-      const res = await fetch(url);
-      if (!res.ok) continue;
-
-      const data = await res.json();
-      const events = data.events || [];
-
-      // Exclude finished matches (state === 'post')
-      const upcomingOrLive = events.filter(ev => ev.status?.type?.state !== 'post' && !seenMatchIds.has(ev.id));
-
-      if (upcomingOrLive.length > 0) {
-        hasMatches = true;
-        fixturesText += `${league.name}\n`;
-
-        upcomingOrLive.forEach(ev => {
-          seenMatchIds.add(ev.id);
-          const comp = ev.competitions && ev.competitions[0];
-          if (!comp) return;
-
-          const home = comp.competitors.find(c => c.homeAway === 'home')?.team?.name || 'Home';
-          const away = comp.competitors.find(c => c.homeAway === 'away')?.team?.name || 'Away';
-          const state = ev.status?.type?.state;
+          leagueLiveHTML += `• 🔵 <b>${home}</b> ${hScore} - ${aScore} 🔴 <b>${away}</b> (⏱️ ${displayMin} | LIVE 🔴)\n`;
+        } else if (state === 'pre') {
+          upcomingCount++;
           const timeFormatted = formatMatchTimes(ev.date);
+          leagueUpcomingHTML += `• 🔵 <b>${home}</b> vs 🔴 <b>${away}</b> (${timeFormatted})\n`;
+        }
+      });
 
-          let scoreDisplay = `vs`;
-          if (state === 'in') {
-            const hScore = comp.competitors.find(c => c.homeAway === 'home')?.score || '0';
-            const aScore = comp.competitors.find(c => c.homeAway === 'away')?.score || '0';
-            const rawDetail = ev.status?.type?.shortDetail || 'LIVE';
-            const displayMin = adjustLiveMinute(rawDetail);
-            scoreDisplay = `<b>${hScore} - ${aScore}</b> 🔴 <b>${away}</b> (⏱️ ${displayMin} | LIVE 🔴)`;
-          } else {
-            scoreDisplay = `vs 🔴 <b>${away}</b> (${timeFormatted})`;
-          }
-
-          fixturesText += `• 🔵 <b>${home}</b> ${scoreDisplay}\n`;
-        });
-
-        fixturesText += `\n`;
+      if (leagueLiveHTML) {
+        liveText += `${league.name}\n${leagueLiveHTML}\n`;
+      }
+      if (leagueUpcomingHTML) {
+        upcomingText += `${league.name}\n${leagueUpcomingHTML}\n`;
       }
     } catch (e) {}
   }
 
-  if (!hasMatches) {
-    fixturesText += `<i>No upcoming scheduled fixtures found for ${dateLabel}.</i>\n\n`;
+  let finalBulletin = `⚽ <b>TECH SPORT TV BULLETIN (${dateLabel})</b>\n━━━━━━━━━━━━━━━\n\n`;
+
+  if (liveCount > 0) {
+    finalBulletin += `🔴 <b>LIVE MATCHES IN PROGRESS:</b>\n\n${liveText}`;
+  } else {
+    finalBulletin += `🚫 <b>NO LIVE EVENTS NOW</b>\n\n`;
   }
 
-  fixturesText += `📌 <i>Fetched Live from Sports Engine</i>\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
-  return fixturesText;
+  if (upcomingCount > 0) {
+    finalBulletin += `📅 <b>UPCOMING SCHEDULED FIXTURES:</b>\n\n${upcomingText}`;
+  }
+
+  finalBulletin += `📌 <i>Powered by Dual Sports Engines (+2m TV Sync)</i>\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
+  return finalBulletin;
 }
 
-// REAL LIVE SOCCER SCORE ENGINE WITH GOALSCORERS & TRANSITION LOCK
+// REAL LIVE SOCCER SCORE ENGINE WITH GOALSCORERS
 async function fetchLiveScoresFromESPN() {
   for (const league of ESPN_LEAGUES) {
     try {
@@ -375,13 +331,10 @@ app.post('/api/telegram-webhook', async (req, res) => {
       const targetChatId = msg.chat.id || TELEGRAM_CHANNEL_ID;
       const text = msg.text.trim().toLowerCase();
 
-      if (text.includes('/live') || text.includes('live match') || text.includes('live matches') || text.includes('live all') || text.includes('all live') || text === 'live') {
-        const liveText = await fetchRealLiveMatchesBulletin();
-        await sendTelegramAlert(targetChatId, liveText);
-      } else if (text.includes('fixture') || text.includes('fixtures') || text === '/today' || text === '/tomorrow') {
+      if (text.includes('/live') || text.includes('live match') || text.includes('live matches') || text.includes('live all') || text.includes('all live') || text === 'live' || text.includes('fixture') || text.includes('fixtures') || text === '/today' || text === '/tomorrow') {
         const { dateStr, label } = parseDateFromText(text);
-        const fixText = await fetchRealFixturesForDate(dateStr, label);
-        await sendTelegramAlert(targetChatId, fixText);
+        const combinedText = await generateCombinedBulletin(dateStr, label);
+        await sendTelegramAlert(targetChatId, combinedText);
       } else if (text.includes('/table') || text.includes('table')) {
         let leagueCode = 'eng.1', leagueName = 'Premier League';
         if (text.includes('laliga')) { leagueCode = 'esp.1'; leagueName = 'La Liga'; }
