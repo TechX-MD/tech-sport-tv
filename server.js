@@ -8,7 +8,7 @@ app.use(express.json());
 const TELEGRAM_BOT_TOKEN = "8903172225:AAGqHqHpBRNVXdj7Ic0KadYo_LRza_6DrhE";
 const TELEGRAM_CHANNEL_ID = "@TechxMD1";
 
-// GLOBAL LEAGUES (Includes KSA Saudi Pro League & USA MLS)
+// ALL GLOBAL LEAGUES (Including Saudi Pro League & MLS)
 const ESPN_LEAGUES = [
   { code: "eng.1", name: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League", key: "epl" },
   { code: "esp.1", name: "🇪🇸 LaLiga", key: "laliga" },
@@ -17,7 +17,7 @@ const ESPN_LEAGUES = [
   { code: "fra.1", name: "🇫🇷 Ligue 1", key: "ligue1" },
   { code: "eng.2", name: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Championship", key: "championship" },
   { code: "uefa.champions", name: "🇪🇺 Champions League", key: "cl" },
-  { code: "ksa.1", name: "🇸🇦 Saudi Professional League (Ronaldo)", key: "saudi" },
+  { code: "ksa.1", name: "🇸🇦 Saudi Professional League", key: "saudi" },
   { code: "usa.1", name: "🇺🇸 MLS (Messi / Inter Miami)", key: "mls" }
 ];
 
@@ -27,14 +27,14 @@ let trackedMatches = {};
 app.get('/', (req, res) => {
   res.status(200).send(`
     <div style="background:#0b1120;color:#2dd4bf;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
-      <h1>⚽ TECH SPORT TV SAUDI KSA & MLS FIXED!</h1>
+      <h1>⚽ TECH SPORT TV GLOBAL ENGINE ONLINE!</h1>
       <p style="color:#94a3b8;">Telegram Channel: <b>@TechxMD1</b></p>
-      <p style="color:#10b981;">Status: 200 OK (Saudi KSA + MLS Active)</p>
+      <p style="color:#10b981;">Status: 200 OK (Global Soccer Active)</p>
     </div>
   `);
 });
 
-// SEND ALERT TO TELEGRAM CHANNEL
+// SEND ALERT TO TELEGRAM
 async function sendTelegramAlert(targetChatId, message) {
   try {
     const chatId = targetChatId || TELEGRAM_CHANNEL_ID;
@@ -60,7 +60,7 @@ function adjustLiveMinute(rawDetail) {
   const match = str.match(/\d+/);
   if (match) {
     const parsedMin = parseInt(match[0], 10);
-    const adjusted = Math.min(90, parsedMin + 2);
+    const adjusted = Math.min(90, parsedMin + 2); // +2 minutes for TV sync
     return `${adjusted}'`;
   }
   return str.includes("'") ? str : `${str}'`;
@@ -122,7 +122,7 @@ function parseDateFromText(text) {
   return { dateStr: getYYYYMMDD(0), label: getFormattedDateString(0) };
 }
 
-// GENERATE DYNAMIC ALL LIVE MATCHES BULLETIN
+// GENERATE DYNAMIC ALL LIVE MATCHES BULLETIN (With "NO LIVE EVENTS NOW")
 async function fetchRealLiveMatchesBulletin() {
   let bulletin = `🔴 <b>TECH SPORT TV — LIVE MATCHES BULLETIN</b>\n━━━━━━━━━━━━━━━\n\n`;
   let liveCount = 0;
@@ -175,7 +175,7 @@ async function fetchRealLiveMatchesBulletin() {
   return bulletin;
 }
 
-// FETCH REAL FIXTURES (Includes Saudi KSA & MLS Timezones)
+// FETCH REAL FIXTURES
 async function fetchRealFixturesForDate(dateStr, dateLabel) {
   let fixturesText = `📅 <b>REAL FOOTBALL FIXTURES</b>\n🗓️ <i>${dateLabel}</i>\n━━━━━━━━━━━━━━━\n\n`;
   let hasMatches = false;
@@ -189,7 +189,6 @@ async function fetchRealFixturesForDate(dateStr, dateLabel) {
       let data = await res.json();
       let events = data.events || [];
 
-      // Fallback scoreboard fetch if date is empty for Saudi/MLS
       if (events.length === 0) {
         const fbUrl = `https://site.api.espn.com/apis/site/v2/sports/soccer/${league.code}/scoreboard`;
         const fbRes = await fetch(fbUrl);
@@ -237,7 +236,7 @@ async function fetchRealFixturesForDate(dateStr, dateLabel) {
   return fixturesText;
 }
 
-// REAL LIVE SOCCER SCORE ENGINE WITH GOALSCORERS
+// REAL LIVE SOCCER SCORE ENGINE WITH GOALSCORERS & TRANSITION LOCK
 async function fetchLiveScoresFromESPN() {
   for (const league of ESPN_LEAGUES) {
     try {
@@ -325,7 +324,7 @@ async function fetchLiveScoresFromESPN() {
   }
 }
 
-// FETCH REAL LIVE STANDINGS (1-20 Teams)
+// FETCH REAL LIVE STANDINGS (1-20)
 async function fetchRealLiveStandings(leagueCode, leagueName) {
   try {
     const res = await fetch(`https://site.api.espn.com/apis/v2/sports/soccer/${leagueCode}/standings`);
@@ -360,11 +359,6 @@ async function fetchRealLiveStandings(leagueCode, leagueName) {
       }
     }
   } catch (e) {}
-
-  // Fallback Saudi Standings
-  if (leagueCode === 'ksa.1' || leagueCode === 'sau.1') {
-    return `🏆 <b>SAUDI PROFESSIONAL LEAGUE STANDINGS 2026 🇸🇦</b>\n━━━━━━━━━━━━━━━\n🥇 <b>1. Al Hilal</b> — 2 GP | <b>6 Pts</b> (GD: +4)\n🥈 <b>2. Al Nassr (Ronaldo)</b> — 1 GP | <b>3 Pts</b> (GD: +3)\n🥉 <b>3. Al Ettifaq</b> — 1 GP | <b>3 Pts</b> (GD: +2)\n🔹 <b>4. Al Qadsiah</b> — 1 GP | <b>3 Pts</b> (GD: +2)\n🔹 <b>5. Al Hazm</b> — 1 GP | <b>3 Pts</b> (GD: +1)\n🔹 <b>6. NEOM SC</b> — 1 GP | <b>3 Pts</b> (GD: +1)\n🔹 <b>7. Al Ahli</b> — 1 GP | <b>3 Pts</b> (GD: +1)\n🔹 <b>8. Al Ittihad</b> — 1 GP | <b>1 Pts</b> (GD: 0)\n\n🥇 <i>ACL Zone</i> | 🔻 <i>Relegation</i>\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
-  }
 
   return null;
 }
