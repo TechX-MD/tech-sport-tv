@@ -8,7 +8,7 @@ app.use(express.json());
 const TELEGRAM_BOT_TOKEN = "8903172225:AAGqHqHpBRNVXdj7Ic0KadYo_LRza_6DrhE";
 const TELEGRAM_CHANNEL_ID = "@TechxMD1";
 
-// GLOBAL LEAGUES
+// ALL GLOBAL LEAGUES (Including SAU.1, KSA.1, SAU.2 for Saudi Pro League & Div 1)
 const ESPN_LEAGUES = [
   { code: "eng.1", name: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League", key: "epl" },
   { code: "esp.1", name: "🇪🇸 LaLiga", key: "laliga" },
@@ -17,7 +17,9 @@ const ESPN_LEAGUES = [
   { code: "fra.1", name: "🇫🇷 Ligue 1", key: "ligue1" },
   { code: "eng.2", name: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Championship", key: "championship" },
   { code: "uefa.champions", name: "🇪🇺 Champions League", key: "cl" },
-  { code: "sau.1", name: "🇸🇦 Saudi Professional League", key: "saudi" },
+  { code: "sau.1", name: "🇸🇦 Saudi Professional League (Al Nassr)", key: "saudi" },
+  { code: "ksa.1", name: "🇸🇦 Saudi Pro League KSA", key: "saudi" },
+  { code: "sau.2", name: "🇸🇦 Saudi Division 1", key: "saudi" },
   { code: "usa.1", name: "🇺🇸 MLS (Messi / Inter Miami)", key: "mls" }
 ];
 
@@ -27,9 +29,9 @@ let trackedMatches = {};
 app.get('/', (req, res) => {
   res.status(200).send(`
     <div style="background:#0b1120;color:#2dd4bf;padding:40px;font-family:sans-serif;text-align:center;min-height:100vh;">
-      <h1>⚽ TECH SPORT TV REAL FIXTURES ENGINE ONLINE!</h1>
+      <h1>⚽ TECH SPORT TV ALL LEAGUES ACTIVE!</h1>
       <p style="color:#94a3b8;">Telegram Channel: <b>@TechxMD1</b></p>
-      <p style="color:#10b981;">Status: 200 OK (Finished Matches Filter Active)</p>
+      <p style="color:#10b981;">Status: 200 OK (Saudi sau.1 + ksa.1 + sau.2 Fixed)</p>
     </div>
   `);
 });
@@ -50,7 +52,7 @@ async function sendTelegramAlert(targetChatId, message) {
   }
 }
 
-// LIVE MINUTE SYNC (+2 Minutes Ahead for TV Broadcast Sync)
+// LIVE MINUTE SYNC (+2 Minutes Ahead for TV Sync)
 function adjustLiveMinute(rawDetail) {
   if (!rawDetail) return "LIVE 🔴";
   const str = String(rawDetail).trim();
@@ -122,10 +124,11 @@ function parseDateFromText(text) {
   return { dateStr: getYYYYMMDD(0), label: getFormattedDateString(0) };
 }
 
-// ALL LIVE MATCHES BULLETIN
+// GENERATE ALL LIVE MATCHES BULLETIN
 async function fetchRealLiveMatchesBulletin() {
   let bulletin = `🔴 <b>TECH SPORT TV — LIVE MATCHES BULLETIN</b>\n━━━━━━━━━━━━━━━\n\n`;
   let liveCount = 0;
+  let seenMatchIds = new Set();
 
   for (const league of ESPN_LEAGUES) {
     try {
@@ -139,12 +142,13 @@ async function fetchRealLiveMatchesBulletin() {
       const inPlayEvents = events.filter(ev => {
         const state = ev.status?.type?.state;
         const stName = ev.status?.type?.name || "";
-        return state === 'in' || stName.includes('PLAY') || stName.includes('HALF');
+        return (state === 'in' || stName.includes('PLAY') || stName.includes('HALF')) && !seenMatchIds.has(ev.id);
       });
 
       if (inPlayEvents.length > 0) {
         bulletin += `${league.name}\n`;
         inPlayEvents.forEach(ev => {
+          seenMatchIds.add(ev.id);
           liveCount++;
           const comp = ev.competitions && ev.competitions[0];
           const home = comp.competitors.find(c => c.homeAway === 'home');
@@ -175,10 +179,11 @@ async function fetchRealLiveMatchesBulletin() {
   return bulletin;
 }
 
-// FETCH REAL FIXTURES (EXCLUDES FINISHED MATCHES SO OLD MATCHES DON'T SHOW UP!)
+// FETCH REAL FIXTURES (EXCLUDES FINISHED MATCHES)
 async function fetchRealFixturesForDate(dateStr, dateLabel) {
   let fixturesText = `📅 <b>REAL FOOTBALL FIXTURES</b>\n🗓️ <i>${dateLabel}</i>\n━━━━━━━━━━━━━━━\n\n`;
   let hasMatches = false;
+  let seenMatchIds = new Set();
 
   for (const league of ESPN_LEAGUES) {
     try {
@@ -189,17 +194,15 @@ async function fetchRealFixturesForDate(dateStr, dateLabel) {
       const data = await res.json();
       const events = data.events || [];
 
-      // Filter out finished matches (state === 'post')
-      const upcomingOrLiveEvents = events.filter(ev => {
-        const state = ev.status?.type?.state;
-        return state === 'pre' || state === 'in';
-      });
+      // Exclude finished matches (state === 'post')
+      const upcomingOrLive = events.filter(ev => ev.status?.type?.state !== 'post' && !seenMatchIds.has(ev.id));
 
-      if (upcomingOrLiveEvents.length > 0) {
+      if (upcomingOrLive.length > 0) {
         hasMatches = true;
         fixturesText += `${league.name}\n`;
 
-        upcomingOrLiveEvents.forEach(ev => {
+        upcomingOrLive.forEach(ev => {
+          seenMatchIds.add(ev.id);
           const comp = ev.competitions && ev.competitions[0];
           if (!comp) return;
 
@@ -353,7 +356,7 @@ async function fetchRealLiveStandings(leagueCode, leagueName) {
           tableText += `${badge} <b>${rank}. ${teamName}</b> — ${gp} GP | <b>${pts} Pts</b> (GD: ${gdSign})\n`;
         });
 
-        tableText += `\n🥇 <i>UCL Zone</i> | 🔹 <i>European Zone</i> | 🔻 <i>Relegation</i>\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
+        tableText += `\n🥇 <i>UCL / Champion Zone</i> | 🔹 <i>European Zone</i> | 🔻 <i>Relegation</i>\n━━━━━━━━━━━━━━━\n📺 <b>TECH SPORT TV</b>`;
         return tableText;
       }
     }
@@ -387,7 +390,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
         else if (text.includes('ligue1')) { leagueCode = 'fra.1'; leagueName = 'Ligue 1'; }
         else if (text.includes('championship')) { leagueCode = 'eng.2'; leagueName = 'Championship'; }
         else if (text.includes('cl') || text.includes('champions')) { leagueCode = 'uefa.champions'; leagueName = 'Champions League'; }
-        else if (text.includes('saudi') || text.includes('ronaldo') || text.includes('pro league') || text.includes('hilal') || text.includes('nassr')) { leagueCode = 'ksa.1'; leagueName = 'Saudi Professional League'; }
+        else if (text.includes('saudi') || text.includes('ronaldo') || text.includes('pro league') || text.includes('hilal') || text.includes('nassr')) { leagueCode = 'sau.1'; leagueName = 'Saudi Professional League'; }
         else if (text.includes('mls') || text.includes('messi') || text.includes('inter miami')) { leagueCode = 'usa.1'; leagueName = 'MLS Inter Miami'; }
 
         const tableText = await fetchRealLiveStandings(leagueCode, leagueName);
